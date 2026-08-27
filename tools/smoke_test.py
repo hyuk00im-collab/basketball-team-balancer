@@ -256,6 +256,28 @@ def main() -> int:
     assert res.status_code == 400
     print("[validate] 최소 인원 검증 OK")
 
+    # 10-1) 방문자별 세션 분리 — 다른 브라우저는 서로의 명단을 볼 수 없어야 한다
+    alice = TestClient(app)
+    bob = TestClient(app)
+    alice.post("/api/members", json={"name": "앨리스가드", "position": "가드"})
+    alice.post("/api/members", json={"name": "앨리스포워드", "position": "포워드"})
+    assert [m["name"] for m in alice.get("/api/members").json()] == ["앨리스가드", "앨리스포워드"]
+    assert bob.get("/api/members").json() == [], "다른 방문자의 명단이 보임"
+    bob.post("/api/members", json={"name": "밥가드", "position": "가드"})
+    assert [m["name"] for m in bob.get("/api/members").json()] == ["밥가드"]
+    assert len(alice.get("/api/members").json()) == 2, "다른 방문자가 내 명단을 건드림"
+    assert bob.get("/api/teams/result").status_code == 404
+    alice.delete("/api/members")
+    assert len(bob.get("/api/members").json()) == 1, "전체 삭제가 남의 세션까지 지움"
+    cookie = alice.cookies.get("btb_session")
+    assert cookie and len(cookie) > 20, "세션 쿠키가 발급되지 않음"
+    print("[session] 방문자별 명단 분리 OK (쿠키 발급 확인)")
+
+    # 10-2) 과도한 요청 방어
+    assert client.post("/api/teams/generate", json={"options": {"iterations": 999999}}).status_code == 422
+    assert client.post("/api/teams/generate", json={"options": {"team_count": 99}}).status_code == 422
+    print("[limits] 반복 횟수·팀 수 상한 검증 OK")
+
     # 11) 정적 페이지
     for path in ("/", "/result", "/static/app.js", "/static/style.css"):
         assert client.get(path).status_code == 200, path

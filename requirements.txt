@@ -3,4 +3,3 @@ uvicorn[standard]>=0.27
 openpyxl>=3.1
 python-multipart>=0.0.9
 pydantic>=2.6
-httpx2>=0.28   # tools/smoke_test.py 실행용 (앱 구동에는 불필요)

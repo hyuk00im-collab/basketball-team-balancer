@@ -27,7 +27,14 @@
 이 저장소는 세 개의 스펙 문서 — `SPEC.md`(데이터 스키마) · `TEAM_BALANCE_SPEC.md`(편성 알고리즘) ·
 `WEBAPP_SPEC.md`(제품 요구사항) — 를 구현한 결과물입니다.
 
-## 실행
+## 온라인에서 바로 써보기
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/hyuk00im-collab/basketball-team-balancer)
+
+저장소에 `render.yaml`이 들어 있어 위 버튼 하나로 본인 계정에 배포됩니다 (무료 플랜, 신용카드 불필요).
+자세한 절차는 아래 [배포](#배포-render) 항목을 보세요.
+
+## 로컬에서 실행
 
 ```bat
 pip install -r requirements.txt
@@ -62,6 +69,7 @@ C:\AI\AICoding2\
 ├─ tools\
 │  ├─ make_sample_xlsx.py  샘플 엑셀을 파일로 저장하는 CLI 래퍼
 │  └─ smoke_test.py        API 전체 흐름 스모크 테스트
+├─ render.yaml       Render 배포 설정 (Blueprint)
 ├─ docs\             README용 화면 캡처
 ├─ sample\           생성된 샘플 엑셀 (저장소에는 포함하지 않음)
 └─ requirements.txt
@@ -253,16 +261,43 @@ cost = Var(팀 평균 실질전력)
 ## 테스트
 
 ```bat
+pip install -r requirements-dev.txt
 python -X utf8 tools\smoke_test.py
 ```
 
 샘플/양식 다운로드 후 재업로드(왕복) → 업로드 → 게스트 추가(중앙값 대체) → 편성 → 지표 검증 → 시드 재현성 → 제외/고정 배정
 → xlsx 내보내기 → 삭제 → 최소 인원 검증까지 한 번에 확인합니다.
 
+## 배포 (Render)
+
+`render.yaml`(Blueprint)이 저장소에 있으므로 설정 파일을 따로 만들 필요가 없습니다.
+
+1. [render.com](https://render.com) 에 GitHub 계정으로 가입
+2. **New → Blueprint** → 이 저장소 선택 → **Apply**
+3. 2~3분 뒤 `https://<서비스명>.onrender.com` 주소가 나옵니다
+
+```yaml
+# render.yaml 이 하는 일
+buildCommand: pip install -r requirements.txt
+startCommand: uvicorn main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers
+healthCheckPath: /api/skills
+autoDeployTrigger: commit      # main 에 push 하면 자동 재배포
+```
+
+**무료 플랜에서 알아둘 점**
+
+- 15분 동안 접속이 없으면 서버가 잠들고, 다음 접속이 **1분 정도 느립니다**(콜드 스타트).
+- 잠들거나 재배포되면 **메모리에 있던 명단이 사라집니다.** 엑셀을 다시 올리면 됩니다.
+- 결과가 필요하면 `xlsx 저장`으로 내려받아 두세요.
+
 ## 데이터 보관
 
-MVP 범위대로 인원 데이터는 **서버 메모리**에만 있습니다. 서버를 재시작하면 사라지므로,
-편성 결과가 필요하면 xlsx로 저장해 두세요.
+인원 데이터는 **방문자(브라우저)별로 분리된 서버 메모리**에 담깁니다.
+`btb_session` 쿠키로 구분하므로 공개 주소에 올려도 다른 사람의 명단이 섞이거나 보이지 않습니다.
+
+- 12시간 동안 쓰지 않은 세션은 정리되고, 서버를 재시작하면 모두 사라집니다.
+- 편성 결과가 필요하면 `xlsx 저장`으로 내려받아 두세요.
+- 공개 배포를 고려해 세션당 인원 200명, 업로드 4MB, 최적화 반복 20,000회의 상한을 둡니다.
 
 ## 데이터 백업
 

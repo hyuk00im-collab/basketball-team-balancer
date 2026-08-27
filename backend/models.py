@@ -100,20 +100,21 @@ class MemberInput(BaseModel):
 class BalanceOptions(BaseModel):
     """편성 파라미터 (TEAM_BALANCE_SPEC.md §4.1)."""
 
-    team_count: int = 3                 # WEBAPP_SPEC.md §3.2 — K=3 고정
-    seed: Optional[int] = None          # SPEC.md §5 — 재현 가능한 결과
-    use_height: bool = True             # 신장 편차 반영 여부(옵션)
-    iterations: int = 3000              # Hill Climbing 반복 횟수
-    lambda_position: float = 1.0
-    lambda_role: float = 0.6
-    lambda_height: float = 0.3
+    # 공개 배포를 고려해 상한을 둔다 (과도한 CPU 사용 방지)
+    team_count: int = Field(3, ge=2, le=8)        # WEBAPP_SPEC.md §3.2 — 기본 K=3
+    seed: Optional[int] = None                    # SPEC.md §5 — 재현 가능한 결과
+    use_height: bool = True                       # 신장 편차 반영 여부(옵션)
+    iterations: int = Field(3000, ge=0, le=20000)  # Hill Climbing 반복 횟수
+    lambda_position: float = Field(1.0, ge=0, le=10)
+    lambda_role: float = Field(0.6, ge=0, le=10)
+    lambda_height: float = Field(0.3, ge=0, le=10)
     excluded_ids: List[str] = Field(default_factory=list)   # 편성 제외 인원
     locked: Dict[str, int] = Field(default_factory=dict)    # {member_id: team_index}
-    separate_top_n: int = 3            # 1순위: 포지션별 역량 상위 N명 분산 (0=해제)
-    separate_height_top_n: int = 3     # 2순위: 신장 상위 N명 분산 (0=해제)
+    separate_top_n: int = Field(3, ge=0, le=10)         # 1순위: 역량 상위 N명 분산 (0=해제)
+    separate_height_top_n: int = Field(3, ge=0, le=10)  # 2순위: 신장 상위 N명 분산 (0=해제)
     height_positions: List[str] = Field(default_factory=lambda: ["포워드"])
-    age_bonus_from: int = 55           # 이 나이부터 보너스 적용
-    age_bonus: float = 0.5             # 55세 이상 가중치 → 실질 전력에 가산
+    age_bonus_from: int = Field(55, ge=10, le=99)       # 이 나이부터 가중치 적용
+    age_bonus: float = Field(0.5, ge=0, le=5)           # 55세 이상 가중치 → 실질 전력에 가산
 
 
 class TeamSummary(BaseModel):

@@ -1,14 +1,17 @@
 """농구 팀 편성 웹앱 — FastAPI 진입점 (WEBAPP_SPEC.md §5 API 설계)."""
 
 import io
+import secrets
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))  # backend 모듈을 최상위 이름으로 import
 
-from fastapi import Body, FastAPI, File, HTTPException, UploadFile  # noqa: E402
+from fastapi import Body, Depends, FastAPI, File, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, StreamingResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from openpyxl import Workbook  # noqa: E402
@@ -69,7 +72,69 @@ class Store:
         return ranking.annotate(xlsx_parser.impute(self.members))
 
 
-store = Store()
+# 방문자(브라우저)별로 독립된 저장소를 둔다. 공개 배포 시 남의 명단이 섞이지 않도록.
+SESSION_COOKIE = "btb_session"
+SESSION_TTL = 12 * 3600      # 12시간 미사용 시 정리
+MAX_SESSIONS = 300           # 메모리 상한 (가장 오래된 세션부터 정리)
+MAX_MEMBERS = 200            # 세션당 인원 상한
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
+
+
+class SessionRegistry:
+    """세션 id → Store. 오래된 세션은 접근 시점에 정리한다."""
+
+    def __init__(self) -> None:
+        self._stores: Dict[str, Store] = {}
+        self._seen: Dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def get(self, sid: str) -> Store:
+        with self._lock:
+            self._prune()
+            store = self._stores.get(sid)
+            if store is None:
+                store = Store()
+                self._stores[sid] = store
+            self._seen[sid] = time.time()
+            return store
+
+    def _prune(self) -> None:
+        now = time.time()
+        for sid in [s for s, seen in self._seen.items() if now - seen > SESSION_TTL]:
+            self._stores.pop(sid, None)
+            self._seen.pop(sid, None)
+        while len(self._stores) > MAX_SESSIONS:
+            oldest = min(self._seen, key=self._seen.get)
+            self._stores.pop(oldest, None)
+            self._seen.pop(oldest, None)
+
+
+sessions = SessionRegistry()
+
+
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    sid = request.cookies.get(SESSION_COOKIE) or ""
+    if not sid.isalnum() and not all(c.isalnum() or c in "-_" for c in sid):
+        sid = ""
+    if not sid:
+        sid = secrets.token_urlsafe(18)
+    request.state.store = sessions.get(sid)
+
+    response = await call_next(request)
+    https = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    response.set_cookie(
+        SESSION_COOKIE, sid,
+        max_age=SESSION_TTL, httponly=True, samesite="lax", secure=https, path="/",
+    )
+    return response
+
+
+def get_store(request: Request) -> Store:
+    return request.state.store
+
+
+StoreDep = Depends(get_store)
 
 
 # ------------------------------------------------------------------ 페이지
@@ -96,12 +161,14 @@ def get_skills() -> Dict:
 
 
 @app.get("/api/members", response_model=List[Member])
-def list_members() -> List[Member]:
+def list_members(store: Store = StoreDep) -> List[Member]:
     return store.resolved()
 
 
 @app.post("/api/members", response_model=Member, status_code=201)
-def add_member(payload: MemberInput) -> Member:
+def add_member(payload: MemberInput, store: Store = StoreDep) -> Member:
+    if len(store.members) >= MAX_MEMBERS:
+        raise HTTPException(status_code=400, detail=f"인원은 최대 {MAX_MEMBERS}명까지 등록할 수 있습니다.")
     skills = payload.valid_skills()
     estimated = len(skills) < 10
     member = Member(
@@ -124,7 +191,7 @@ def add_member(payload: MemberInput) -> Member:
 
 
 @app.delete("/api/members/{member_id}", status_code=204)
-def delete_member(member_id: str) -> None:
+def delete_member(member_id: str, store: Store = StoreDep) -> None:
     before = len(store.members)
     store.members = [m for m in store.members if m.id != member_id]
     if len(store.members) == before:
@@ -132,7 +199,7 @@ def delete_member(member_id: str) -> None:
 
 
 @app.delete("/api/members", status_code=204)
-def clear_members() -> None:
+def clear_members(store: Store = StoreDep) -> None:
     store.members = []
     store.last_result = None
     store.last_options = None
@@ -158,14 +225,26 @@ def download_sample(empty: bool = False) -> StreamingResponse:
 
 
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...)) -> Dict:
+async def upload(file: UploadFile = File(...), store: Store = StoreDep) -> Dict:
     if not (file.filename or "").lower().endswith((".xlsx", ".xlsm")):
         raise HTTPException(status_code=400, detail="xlsx 파일만 업로드할 수 있습니다.")
     data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"파일이 너무 큽니다. {MAX_UPLOAD_BYTES // (1024 * 1024)}MB 이하로 올려주세요.",
+        )
     try:
         parsed, warnings = xlsx_parser.parse_workbook(data)
     except Exception as exc:  # noqa: BLE001 - 파싱 실패 원인을 그대로 전달
         raise HTTPException(status_code=400, detail=f"파일 파싱 실패: {exc}") from exc
+
+    if len(store.members) + len(parsed) > MAX_MEMBERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"인원은 최대 {MAX_MEMBERS}명까지 등록할 수 있습니다. "
+                   f"(현재 {len(store.members)}명 + 파일 {len(parsed)}명)",
+        )
 
     added = []
     for m in parsed:
@@ -226,7 +305,10 @@ def build_warnings(
 
 
 @app.post("/api/teams/generate", response_model=GenerateResponse)
-def generate(req: GenerateRequest = Body(default_factory=GenerateRequest)) -> GenerateResponse:
+def generate(
+    req: GenerateRequest = Body(default_factory=GenerateRequest),
+    store: Store = StoreDep,
+) -> GenerateResponse:
     options = req.options
     everyone = store.resolved()
     excluded_ids = set(options.excluded_ids)
@@ -257,7 +339,7 @@ def generate(req: GenerateRequest = Body(default_factory=GenerateRequest)) -> Ge
 
 
 @app.post("/api/teams/rearrange", response_model=GenerateResponse)
-def rearrange(req: RearrangeRequest) -> GenerateResponse:
+def rearrange(req: RearrangeRequest, store: Store = StoreDep) -> GenerateResponse:
     """결과 화면에서 인원을 손으로 옮긴 팀 구성으로 요약·지표를 다시 계산한다.
 
     편성 알고리즘은 돌리지 않고, 받은 배치를 그대로 평가만 한다.
@@ -308,14 +390,17 @@ def rearrange(req: RearrangeRequest) -> GenerateResponse:
 
 
 @app.get("/api/teams/result", response_model=GenerateResponse)
-def last_result() -> GenerateResponse:
+def last_result(store: Store = StoreDep) -> GenerateResponse:
     if store.last_result is None:
         raise HTTPException(status_code=404, detail="편성 결과가 없습니다. 먼저 팀 편성을 실행해 주세요.")
     return store.last_result
 
 
 @app.post("/api/teams/export")
-def export_xlsx(team_names: Optional[List[str]] = Body(default=None, embed=True)) -> StreamingResponse:
+def export_xlsx(
+    team_names: Optional[List[str]] = Body(default=None, embed=True),
+    store: Store = StoreDep,
+) -> StreamingResponse:
     """편성 결과를 xlsx로 재출력 (WEBAPP_SPEC.md §4 P2)."""
     if store.last_result is None:
         raise HTTPException(status_code=404, detail="편성 결과가 없습니다.")

@@ -1,0 +1,12 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# 이 파일이 저장소에 있으면 Render에서 "New → Blueprint"로 한 번에 배포된다.
+services:
+  - type: web
+    name: basketball-team-balancer
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers
+    healthCheckPath: /api/skills
+    autoDeployTrigger: commit
