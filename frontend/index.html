@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>농구 팀 편성 — 인원 입력</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <h1><span class="ball">🏀</span> 농구 팀 편성</h1>
+    <p class="sub">인원의 역량·포지션·신체정보를 입력하면 균형 잡힌 <strong>3개 팀</strong>으로 나눠 드립니다.</p>
+  </div>
+</header>
+
+<main class="wrap layout">
+  <!-- ============================ 좌측: 입력 ============================ -->
+  <section class="col">
+    <div class="card">
+      <h2>① 엑셀 업로드</h2>
+      <p class="hint">
+        <code>선수레벨</code> 시트, 3행 헤더 / 5행부터 데이터인 <code>.xlsx</code> 파일을 올려주세요.
+        나이는 <code>출생년도</code> 열에서 자동 계산됩니다.
+      </p>
+      <div class="dl-row">
+        <a class="ghost small" href="/api/sample" download>⬇ 샘플 파일 (24명)</a>
+        <a class="ghost small" href="/api/sample?empty=true" download>⬇ 빈 양식</a>
+      </div>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden />
+        <span class="dz-icon">📄</span>
+        <span class="dz-text">파일을 끌어놓거나 클릭해서 선택</span>
+      </label>
+      <div id="uploadMsg" class="msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>② 인원 직접 추가 <span class="tag">게스트 포함</span></h2>
+      <form id="memberForm" autocomplete="off">
+        <div class="grid2">
+          <label>이름 <span class="req">*</span>
+            <input type="text" name="name" required placeholder="홍길동" />
+          </label>
+          <label>포지션 <span class="req">*</span>
+            <select name="position" id="positionSelect" required>
+              <option value="가드">가드</option>
+              <option value="포워드">포워드</option>
+            </select>
+          </label>
+          <label>출생년도
+            <input type="number" name="birth_year" id="birthYear" min="1930" max="2100" placeholder="1993" />
+          </label>
+          <label>나이 <span class="hint-inline">출생년도 입력 시 자동</span>
+            <input type="number" name="age" id="ageInput" min="10" max="80" placeholder="자동 계산" />
+          </label>
+          <label>키(cm)
+            <input type="number" name="height_cm" min="140" max="230" placeholder="178" />
+          </label>
+        </div>
+
+        <label class="check">
+          <input type="checkbox" name="is_guest" checked /> 게스트로 표시
+        </label>
+
+        <div class="skills-head">
+          <h3>역량 10항목 <span class="hint-inline">0~5, 0.5 단위</span></h3>
+          <button type="button" class="link" id="skipSkills">전부 비우기</button>
+        </div>
+        <p class="hint">
+          미입력 항목은 <strong>동일 포지션 인원의 중앙값</strong>으로 대체되며, 목록에 <em>추정</em>으로 표시됩니다.
+        </p>
+        <div id="skillFields" class="skills"></div>
+
+        <button type="submit" class="primary block">인원 추가</button>
+        <div id="formMsg" class="msg"></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============================ 우측: 목록 ============================ -->
+  <section class="col">
+    <div class="card sticky">
+      <div class="card-head">
+        <h2>③ 등록 인원 <span class="count" id="memberCount">0</span></h2>
+        <button type="button" class="ghost small" id="clearAll">전체 삭제</button>
+      </div>
+
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="table-scroll">
+        <table class="member-table">
+          <thead>
+            <tr><th>이름</th><th>포지션</th><th>레벨</th><th>나이</th><th>키</th><th></th></tr>
+          </thead>
+          <tbody id="memberBody">
+            <tr class="empty"><td colspan="6">아직 등록된 인원이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details class="options">
+        <summary>편성 옵션</summary>
+        <div class="grid2 opt-grid">
+          <label class="check"><input type="checkbox" id="optHeight" checked /> 평균 신장 편차 반영</label>
+          <label>최적화 반복 횟수
+            <input type="number" id="optIter" value="3000" min="0" max="50000" step="500" />
+          </label>
+          <label>랜덤 시드 <span class="hint-inline">비우면 매번 랜덤</span>
+            <input type="number" id="optSeed" placeholder="예: 42" />
+          </label>
+        </div>
+      </details>
+
+      <button type="button" class="primary block big" id="generateBtn">팀 편성하기 →</button>
+      <div id="genMsg" class="msg"></div>
+    </div>
+  </section>
+</main>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="spinner"></div>
+  <p>최적 조합을 찾는 중…</p>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

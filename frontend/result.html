@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>농구 팀 편성 — 결과</title>
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap headline">
+    <div>
+      <h1><span class="ball">🏀</span> 편성 결과</h1>
+      <p class="sub" id="seedLine"></p>
+    </div>
+    <div class="actions">
+      <a class="ghost" href="/">← 인원 편집</a>
+      <button type="button" class="ghost" id="reshuffleBtn">다시 편성</button>
+      <button type="button" class="ghost" id="exportBtn">xlsx 저장</button>
+      <button type="button" class="ghost" id="copyBtn">텍스트 복사</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="warnings"></div>
+
+  <section class="card metrics">
+    <h2>밸런스 평가 지표</h2>
+    <div class="metric-grid" id="metricGrid"></div>
+  </section>
+
+  <p class="drag-hint">
+    인원을 <strong>다른 팀 카드로 끌어다 놓으면</strong> 팀이 바뀌고 지표가 다시 계산됩니다.
+    이름을 클릭하면 역량 차트가 열리고, 키보드에서는 인원을 선택한 뒤 숫자키
+    <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 으로 옮길 수 있습니다.
+    <span class="hint-inline">· 자동 편성으로 되돌리려면 상단 「다시 편성」</span>
+  </p>
+
+  <section class="teams" id="teams"></section>
+
+  <section class="card" id="excludedCard" hidden>
+    <h2>편성 제외 인원</h2>
+    <p id="excludedList" class="hint"></p>
+  </section>
+</main>
+
+<!-- 인원별 상세 시트 (명단에서 인원 클릭 시) -->
+<div class="sheet-backdrop" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetName">
+    <button type="button" class="sheet-close" id="sheetClose" aria-label="닫기">×</button>
+    <div class="sheet-head">
+      <h2 id="sheetName"></h2>
+      <p class="sheet-sub" id="sheetSub"></p>
+    </div>
+    <div class="tiles" id="sheetTiles"></div>
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-title">
+        역량 프로파일 <span class="hint-inline">0~5점 · 축은 역할군 순서로 묶음</span>
+      </div>
+      <div id="radarBox"></div>
+      <div class="legend" id="chartLegend"></div>
+      <div class="tip" id="chartTip" hidden></div>
+    </div>
+    <div class="points" id="sheetPoints"></div>
+    <div class="sheet-roles" id="sheetRoles"></div>
+    <details class="table-view">
+      <summary>역량 10항목 표로 보기</summary>
+      <div id="sheetTable"></div>
+    </details>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="spinner"></div>
+  <p>다시 편성하는 중…</p>
+</div>
+
+<script type="module" src="/static/result.js"></script>
+</body>
+</html>

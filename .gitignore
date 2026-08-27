@@ -1,0 +1,23 @@
+# ---- 개인정보 ----
+# 실제 회원 명단 백업 (이름·출생년도·키·역량 점수) — 저장소에 올리지 않는다
+backup/
+*_backup.json
+
+# ---- 생성물 ----
+# 샘플/양식 엑셀은 앱의 '샘플 파일 다운로드' 또는 tools/make_sample_xlsx.py 로 만든다
+sample/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- 에디터 / OS ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
