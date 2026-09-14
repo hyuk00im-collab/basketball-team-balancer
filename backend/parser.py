@@ -10,6 +10,8 @@ from openpyxl import load_workbook
 
 from models import Member
 from skills import (
+    CENTER,
+    CENTER_SKILLS,
     FORWARD,
     FORWARD_SKILLS,
     GUARD,
@@ -21,13 +23,14 @@ from skills import (
 )
 
 DATA_SHEET = "선수레벨"
-HEADER_ROW = 3     # SPEC.md §1 — 컬럼명 행
-EXAMPLE_ROW = 4    # 예시행: 파싱 제외
-FIRST_DATA_ROW = 5
+HEADER_ROW = 3          # SPEC.md §1 — 표준 양식의 컬럼명 행 (못 찾았을 때의 기본값)
+HEADER_SCAN_ROWS = 12   # 헤더 행을 찾기 위해 훑어보는 최대 행 수
+EXAMPLE_MARK = "예시"   # '예시)홍길동' 처럼 예시행 이름에 붙는 표시
+MAX_BLANK_ROWS = 20     # 이름 없는 행이 이만큼 이어지면 데이터 끝으로 본다
 
 # 현재 레이아웃 (SPEC.md §2)
 #   A 이름 / B 출생년도 / C 나이(수식) / D 키(cm) / E 포지션
-#   F~O 가드 역량 10 / P~Y 포워드 역량 10 / Z 역량평균
+#   F~O 가드 역량 10 / P~Y 포워드 역량 10 / Z~AI 센터 역량 10 / AJ 역량평균
 LAYOUT = {
     "name": 1,
     "birth_year": 2,
@@ -36,7 +39,8 @@ LAYOUT = {
     "position": 5,
     "guard_start": 6,
     "forward_start": 16,
-    "level": 26,
+    "center_start": 26,
+    "level": 36,
 }
 
 # 출생년도 열이 없던 이전 레이아웃 (헤더명을 못 찾았을 때의 fallback)
@@ -87,7 +91,7 @@ def resolve_columns(header: Tuple) -> Tuple[Dict[str, Optional[int]], Dict[str, 
     """
     found: Dict[str, int] = {}
     skill_cols: Dict[str, int] = {}
-    skill_lookup = {_norm(s): s for s in GUARD_SKILLS + FORWARD_SKILLS}
+    skill_lookup = {_norm(s): s for s in GUARD_SKILLS + FORWARD_SKILLS + CENTER_SKILLS}
 
     for col, raw in enumerate(header, start=1):
         key = _norm(raw)
@@ -116,6 +120,9 @@ def resolve_columns(header: Tuple) -> Tuple[Dict[str, Optional[int]], Dict[str, 
             skill_cols[item] = fallback["guard_start"] + i
         for i, item in enumerate(FORWARD_SKILLS):
             skill_cols[item] = fallback["forward_start"] + i
+        if "center_start" in fallback:
+            for i, item in enumerate(CENTER_SKILLS):
+                skill_cols[item] = fallback["center_start"] + i
 
     columns: Dict[str, Optional[int]] = {}
     for key in ("name", "age", "height", "position", "level"):
@@ -123,6 +130,31 @@ def resolve_columns(header: Tuple) -> Tuple[Dict[str, Optional[int]], Dict[str, 
     # 출생년도는 헤더가 있을 때만 사용한다 (예전 파일의 B열은 '나이'이므로 추정 금지)
     columns["birth_year"] = found.get("birth_year")
     return columns, skill_cols
+
+
+def find_header_row(ws, max_col: int) -> Tuple[int, Tuple]:
+    """'이름'·'포지션' 컬럼명이 함께 있는 행을 헤더로 본다.
+
+    양식 위에 안내문이 몇 줄 붙어 있어도(또는 없어도) 헤더 위치를 찾아내
+    **바로 다음 행부터 인원 데이터로 읽는다.** 헤더를 못 찾으면 표준 양식의
+    3행을 헤더로 가정한다.
+    """
+    fallback: Tuple = ()
+    for idx, row in enumerate(
+        ws.iter_rows(min_row=1, max_row=HEADER_SCAN_ROWS, max_col=max_col, values_only=True),
+        start=1,
+    ):
+        keys = {_norm(v) for v in row}
+        if "이름" in keys and "포지션" in keys:
+            return idx, row
+        if idx == HEADER_ROW:
+            fallback = row
+    return HEADER_ROW, fallback
+
+
+def _is_example(name: str) -> bool:
+    """'예시)홍길동' 같은 안내용 예시행인지 (실제 인원이 아님)."""
+    return _norm(name).lstrip("(").startswith(EXAMPLE_MARK)
 
 
 def _cell(row: Tuple, col: Optional[int]):
@@ -148,26 +180,34 @@ def parse_workbook(data: bytes) -> Tuple[List[Member], List[str]]:
         )
 
     max_col = max(ws.max_column or 0, LAYOUT["level"])
-    header_rows = list(
-        ws.iter_rows(min_row=HEADER_ROW, max_row=HEADER_ROW, max_col=max_col, values_only=True)
-    )
-    columns, skill_cols = resolve_columns(header_rows[0] if header_rows else ())
+    header_row, header = find_header_row(ws, max_col)
+    columns, skill_cols = resolve_columns(header)
     if columns["birth_year"] is None:
         warnings.append("출생년도 열이 없어 '나이' 열 값을 그대로 사용했습니다.")
 
     this_year = date.today().year
     members: List[Member] = []
+    blanks = 0
+    # 헤더 바로 다음 행부터 읽는다 — 첫 인원이 누락되지 않게 시작 행을 고정하지 않는다.
     for row_idx, row in enumerate(
-        ws.iter_rows(min_row=FIRST_DATA_ROW, max_col=max_col, values_only=True),
-        start=FIRST_DATA_ROW,
+        ws.iter_rows(min_row=header_row + 1, max_col=max_col, values_only=True),
+        start=header_row + 1,
     ):
         name = _cell(row, columns["name"])
         if name is None or str(name).strip() == "":
-            break  # SPEC.md §1 — 빈 이름 행 = 데이터 끝
+            # 중간에 낀 빈 행은 건너뛰고, 빈 행이 계속 이어지면 데이터 끝으로 본다.
+            blanks += 1
+            if blanks >= MAX_BLANK_ROWS:
+                break
+            continue
+        blanks = 0
 
         name = str(name).strip()
+        if _is_example(name):
+            continue  # 양식에 들어 있는 '예시)홍길동' 안내행
+
         position = str(_cell(row, columns["position"]) or "").strip()
-        if position not in (GUARD, FORWARD):
+        if position not in (GUARD, FORWARD, CENTER):
             warnings.append(f"{row_idx}행 '{name}': 포지션이 '{position}'이라 건너뜁니다.")
             continue
 
@@ -212,7 +252,10 @@ def parse_workbook(data: bytes) -> Tuple[List[Member], List[str]]:
 
     wb.close()
     if not members:
-        warnings.append("읽어들인 인원이 없습니다. 시트 형식(3행 헤더 / 5행부터 데이터)을 확인해 주세요.")
+        warnings.append(
+            "읽어들인 인원이 없습니다. '이름'·'포지션' 컬럼명이 있는 헤더 행과 "
+            "그 아래 인원 데이터가 있는지 확인해 주세요."
+        )
     return members, warnings
 
 

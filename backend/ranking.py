@@ -14,15 +14,15 @@
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from models import Member
-from skills import FORWARD, GUARD
+from skills import CENTER, FORWARD, GUARD
 
 AGE_BONUS_FROM = 55
 AGE_BONUS = 0.5
 SEPARATE_TOP_N = 3          # 역량 순위 분산 인원 수
 HEIGHT_TOP_N = 3            # 신장 순위 분산 인원 수
-HEIGHT_POSITIONS = (FORWARD,)  # 신장 분산을 적용할 포지션
+HEIGHT_POSITIONS = (FORWARD, CENTER)  # 신장 분산을 적용할 포지션
 
-POSITIONS = (GUARD, FORWARD)
+POSITIONS = (GUARD, FORWARD, CENTER)
 
 
 def age_bonus_for(

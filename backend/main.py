@@ -17,6 +17,8 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from openpyxl import Workbook  # noqa: E402
 
 import parser as xlsx_parser  # noqa: E402
+import quick_parser  # noqa: E402
+import quick_sample_sheet  # noqa: E402
 import ranking  # noqa: E402
 import sample_sheet  # noqa: E402
 from balancer import balance  # noqa: E402
@@ -31,10 +33,12 @@ from models import (  # noqa: E402
     RearrangeRequest,
 )
 from skills import (  # noqa: E402
+    CENTER_SKILLS,
     FORWARD_SKILLS,
     GUARD_SKILLS,
     ROLE_CLUSTER_LABELS,
     ROLE_MAP,
+    SKILLS_BY_POSITION,
     level_raw,
     level_weighted,
     role_scores,
@@ -139,13 +143,51 @@ StoreDep = Depends(get_store)
 
 # ------------------------------------------------------------------ 페이지
 @app.get("/", include_in_schema=False)
+@app.get("/index.html", include_in_schema=False)
 def page_index() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
+# 정적 호스팅(GitHub Pages)에서는 result.html 로 접근하므로 두 경로를 모두 연다
 @app.get("/result", include_in_schema=False)
+@app.get("/result.html", include_in_schema=False)
 def page_result() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "result.html")
+
+
+@app.get("/quick", include_in_schema=False)
+@app.get("/quick.html", include_in_schema=False)
+def page_quick() -> FileResponse:
+    return FileResponse(FRONTEND_DIR / "quick.html")
+
+
+# ------------------------------------------------------------------ 약식 편성 API
+@app.get("/api/quick/sample")
+def quick_sample(empty: bool = False) -> StreamingResponse:
+    """약식 엑셀 샘플(기본) 또는 빈 양식(empty=true) 다운로드."""
+    wb = quick_sample_sheet.build_workbook(rows=0 if empty else len(quick_sample_sheet.NAMES))
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = "quick_level_template.xlsx" if empty else "quick_level_sheet.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/quick/upload")
+async def quick_upload(file: UploadFile = File(...)):
+    """약식 엑셀 업로드 — 파싱 후 인원 목록 반환 (세션 비저장, 클라이언트 측 관리)."""
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="xlsx 또는 xlsm 파일만 업로드할 수 있습니다.")
+    data = await file.read()
+    try:
+        members, warnings = quick_parser.parse_workbook(data)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"파일을 읽는 중 오류가 발생했습니다: {exc}") from exc
+    return {"added": members, "warnings": warnings}
 
 
 # ------------------------------------------------------------------ API
@@ -153,8 +195,8 @@ def page_result() -> FileResponse:
 def get_skills() -> Dict:
     """포지션별 역량 항목과 역할군 매핑 (프론트 동적 폼 생성용)."""
     return {
-        "positions": ["가드", "포워드"],
-        "skills": {"가드": GUARD_SKILLS, "포워드": FORWARD_SKILLS},
+        "positions": ["가드", "포워드", "센터"],
+        "skills": {"가드": GUARD_SKILLS, "포워드": FORWARD_SKILLS, "센터": CENTER_SKILLS},
         "roles": ROLE_MAP,
         "role_labels": ROLE_CLUSTER_LABELS,
     }
@@ -278,7 +320,7 @@ def build_warnings(
 
     if metrics.quota_violations:
         warnings.append(
-            f"포지션 쿼터(±1명)를 벗어난 팀이 {metrics.quota_violations}개 있습니다. 가드/포워드 비율이 치우쳐 있는지 확인해 주세요."
+            f"포지션 쿼터(±1명)를 벗어난 팀이 {metrics.quota_violations}개 있습니다. 가드/포워드/센터 비율이 치우쳐 있는지 확인해 주세요."
         )
     if metrics.creation_shortage_teams:
         warnings.append(
@@ -291,7 +333,7 @@ def build_warnings(
         )
     if metrics.height_separation_violations:
         warnings.append(
-            f"포워드 신장 상위 {options.separate_height_top_n}명 중 같은 팀에 겹친 경우가 "
+            f"포워드/센터 신장 상위 {options.separate_height_top_n}명 중 같은 팀에 겹친 경우가 "
             f"{metrics.height_separation_violations}건 있습니다. (역량 상위권 분산이 1순위라 양보된 결과일 수 있습니다.)"
         )
     if metrics.bonus_players:
@@ -442,8 +484,8 @@ def export_xlsx(
 
     ws2 = wb.create_sheet("팀요약")
     ws2.append(
-        ["팀", "인원", "평균레벨", "평균실질전력", "실질전력합", "55세이상",
-         "가드", "포워드", "평균키", "창출형"]
+        ["팀", "인원", "정회원", "게스트", "평균레벨", "평균실질전력", "실질전력합",
+         "55세이상", "가드", "포워드", "센터", "평균키", "평균나이", "창출형"]
     )
     for idx, team in enumerate(result.teams):
         s = team.summary
@@ -451,13 +493,17 @@ def export_xlsx(
             [
                 team_label(idx, team.name),
                 len(team.members),
+                s.regulars,
+                s.guests,
                 s.avg_level,
                 s.avg_effective_level,
                 s.sum_effective_level,
                 s.bonus_players,
                 s.guards,
                 s.forwards,
+                s.centers,
                 s.avg_height,
+                s.avg_age,
                 s.creators,
             ]
         )
@@ -468,6 +514,8 @@ def export_xlsx(
     ws2.append(["역량 상위권 분산 위반", result.metrics.top_separation_violations])
     ws2.append(["신장 상위권 분산 위반", result.metrics.height_separation_violations])
     ws2.append(["신장 편차(cm)", result.metrics.height_gap])
+    ws2.append(["평균 나이 편차(세)", result.metrics.age_gap])
+    ws2.append(["팀별 정회원 수 편차(명)", result.metrics.guest_spread])
     ws2.append(["랜덤 시드", result.seed])
 
     buffer = io.BytesIO()

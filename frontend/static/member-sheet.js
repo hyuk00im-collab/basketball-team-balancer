@@ -291,7 +291,7 @@ export function createMemberSheet(defs) {
     if (member.estimated) head.append(badge("est", "추정", "미입력 역량을 동일 포지션 중앙값으로 대체"));
     if (member.position_rank && member.position_rank <= 3)
       head.append(badge("rank", `${member.position} ${member.position_rank}위`));
-    if (member.position === "포워드" && member.height_rank && member.height_rank <= 3)
+    if ((member.position === "포워드" || member.position === "센터") && member.height_rank && member.height_rank <= 3)
       head.append(badge("hrank", `키 ${member.height_rank}위`));
     if (member.age_bonus) head.append(badge("bonus", `+${member.age_bonus}`, "55세 이상 가중치"));
 

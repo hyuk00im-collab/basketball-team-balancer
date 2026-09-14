@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>농구 팀 편성 — 결과</title>
-<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="static/style.css" />
 </head>
 <body>
 <header class="topbar">
@@ -14,7 +14,7 @@
       <p class="sub" id="seedLine"></p>
     </div>
     <div class="actions">
-      <a class="ghost" href="/">← 인원 편집</a>
+      <a class="ghost" href="index.html">← 인원 편집</a>
       <button type="button" class="ghost" id="reshuffleBtn">다시 편성</button>
       <button type="button" class="ghost" id="exportBtn">xlsx 저장</button>
       <button type="button" class="ghost" id="copyBtn">텍스트 복사</button>
@@ -76,6 +76,7 @@
   <p>다시 편성하는 중…</p>
 </div>
 
-<script type="module" src="/static/result.js"></script>
+<script src="static/pyodide-bridge.js"></script>
+<script type="module" src="static/result.js"></script>
 </body>
 </html>

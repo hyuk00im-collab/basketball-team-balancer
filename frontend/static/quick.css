@@ -1,0 +1,101 @@
+/* 약식 편성 (quick.html) 전용 스타일 */
+
+/* ---- 팀 수 선택 ---- */
+.team-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 10px;
+}
+.team-opt label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.team-opt select {
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+/* ---- 입력 목록 — 레벨 바 ---- */
+.level-bar {
+  height: 6px;
+  background: var(--line);
+  border-radius: 999px;
+  width: 80px;
+  overflow: hidden;
+}
+.level-bar::before {
+  content: "";
+  display: block;
+  height: 100%;
+  width: var(--pct, 60%);
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+/* ---- 미니 스킬 바 (입력 목록 + 팀 카드) ---- */
+.tm-bars {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 20px;
+}
+.mini-bar {
+  display: inline-block;
+  width: 7px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  opacity: 0.7;
+  height: calc(var(--v, 60%) * 0.8 + 3px);
+  min-height: 3px;
+  transition: opacity .15s;
+}
+.mini-bar:hover { opacity: 1; }
+
+/* ---- 결과 섹션 헤더 바 ---- */
+.result-bar {
+  background: linear-gradient(120deg, #1b1f2a 0%, #2b3243 60%, #3a2a20 100%);
+  color: #fff;
+  padding: 16px 0;
+  margin-bottom: 24px;
+}
+.result-bar h2 { margin: 0; font-size: 20px; }
+
+/* ---- 팀 카드 — 약식 색상 강조 (style.css .team-card 위에 덧씌움) ---- */
+.q-team-card {
+  border-left: 4px solid var(--team-color, var(--accent));
+}
+.q-team-card .team-head {
+  border-bottom-color: color-mix(in srgb, var(--team-color, var(--accent)) 20%, var(--line));
+}
+/* color-mix 미지원 브라우저 fallback */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  .q-team-card .team-head { border-bottom-color: var(--line); }
+}
+.q-team-card .team-name { color: var(--team-color, var(--ink)); }
+
+/* ---- diff 배지 ---- */
+.team-level .diff {
+  font-size: 12px;
+  font-weight: 600;
+}
+.team-level .diff.pos { color: var(--accent); }
+.team-level .diff.neg { color: var(--guard); }
+
+/* ---- 역할군 바 (6항목 팀 평균) — role-line 그리드 너비 조정 ---- */
+.q-team-card .roles .role-line {
+  grid-template-columns: 56px 1fr 34px;
+}
+
+/* ---- 반응형 ---- */
+@media (max-width: 640px) {
+  .team-opt { flex-direction: column; align-items: flex-start; }
+}

@@ -4,13 +4,16 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>농구 팀 편성 — 인원 입력</title>
-<link rel="stylesheet" href="/static/style.css" />
+<link rel="stylesheet" href="static/style.css" />
 </head>
 <body>
 <header class="topbar">
   <div class="wrap">
     <h1><span class="ball">🏀</span> 농구 팀 편성</h1>
     <p class="sub">인원의 역량·포지션·신체정보를 입력하면 균형 잡힌 <strong>3개 팀</strong>으로 나눠 드립니다.</p>
+  </div>
+  <div class="actions">
+    <a class="ghost" href="quick.html">약식 편성 →</a>
   </div>
 </header>
 
@@ -20,12 +23,13 @@
     <div class="card">
       <h2>① 엑셀 업로드</h2>
       <p class="hint">
-        <code>선수레벨</code> 시트, 3행 헤더 / 5행부터 데이터인 <code>.xlsx</code> 파일을 올려주세요.
+        <code>선수레벨</code> 시트에 <code>이름</code>·<code>포지션</code> 헤더가 있는 <code>.xlsx</code> 파일을 올려주세요.
+        (헤더 다음 행부터 인원으로 읽습니다.)
         나이는 <code>출생년도</code> 열에서 자동 계산됩니다.
       </p>
       <div class="dl-row">
-        <a class="ghost small" href="/api/sample" download>⬇ 샘플 파일 (24명)</a>
-        <a class="ghost small" href="/api/sample?empty=true" download>⬇ 빈 양식</a>
+        <button type="button" class="ghost small" id="dlSample">⬇ 샘플 파일 (24명)</button>
+        <button type="button" class="ghost small" id="dlTemplate">⬇ 빈 양식</button>
       </div>
       <label class="dropzone" id="dropzone">
         <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden />
@@ -46,6 +50,7 @@
             <select name="position" id="positionSelect" required>
               <option value="가드">가드</option>
               <option value="포워드">포워드</option>
+              <option value="센터">센터</option>
             </select>
           </label>
           <label>출생년도
@@ -103,6 +108,11 @@
         <summary>편성 옵션</summary>
         <div class="grid2 opt-grid">
           <label class="check"><input type="checkbox" id="optHeight" checked /> 평균 신장 편차 반영</label>
+          <label class="check"><input type="checkbox" id="optAge" checked /> 평균 나이 편차 반영</label>
+          <label class="check"><input type="checkbox" id="optMembersFirst" checked /> 정회원 먼저 배분 (게스트는 나중)</label>
+          <label>배정 무작위성 <span class="hint-inline">0=항상 같은 방식, 1=많이 섞임</span>
+            <input type="number" id="optRandom" value="0.35" min="0" max="1" step="0.05" />
+          </label>
           <label>최적화 반복 횟수
             <input type="number" id="optIter" value="3000" min="0" max="50000" step="500" />
           </label>
@@ -123,6 +133,7 @@
   <p>최적 조합을 찾는 중…</p>
 </div>
 
-<script src="/static/app.js"></script>
+<script src="static/pyodide-bridge.js"></script>
+<script src="static/app.js"></script>
 </body>
 </html>

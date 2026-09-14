@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>농구 팀 편성 — 약식 편성</title>
+<link rel="stylesheet" href="static/style.css" />
+<link rel="stylesheet" href="static/quick.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap headline">
+    <div>
+      <h1><span class="ball">🏀</span> 약식 팀 편성</h1>
+      <p class="sub">6가지 역량 항목으로 빠르게 입력하고, <strong>무작위 랜덤</strong>으로 팀을 나눕니다. 포지션 구분 없음.</p>
+    </div>
+    <div class="actions">
+      <a class="ghost" href="index.html">정밀 편성 →</a>
+    </div>
+  </div>
+</header>
+
+<!-- ======================================================= 입력 섹션 -->
+<main class="wrap layout" id="inputSection">
+
+  <!-- ============= 좌측: 입력 카드들 ============= -->
+  <section class="col">
+
+    <!-- ① 엑셀 업로드 -->
+    <div class="card">
+      <h2>① 엑셀 업로드</h2>
+      <p class="hint">
+        <code>선수레벨</code> 시트에 <code>이름</code> 헤더와 6가지 역량 항목
+        (<code>슈팅·드리블·패스/시야·수비·리바운드·체력/스피드</code>)이 있는
+        <code>.xlsx</code> 파일을 올려주세요.
+      </p>
+      <div class="dl-row">
+        <button type="button" class="ghost small" id="dlSample">⬇ 샘플 파일 (20명)</button>
+        <button type="button" class="ghost small" id="dlTemplate">⬇ 빈 양식</button>
+      </div>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden />
+        <span class="dz-icon">📄</span>
+        <span class="dz-text">파일을 끌어놓거나 클릭해서 선택</span>
+      </label>
+      <div id="uploadMsg" class="msg"></div>
+    </div>
+
+    <!-- ② 인원 직접 추가 -->
+    <div class="card">
+      <h2>② 인원 직접 추가 <span class="tag">게스트 포함</span></h2>
+      <form id="memberForm" autocomplete="off">
+        <div class="grid2">
+          <label style="grid-column:1/-1">이름 <span class="req">*</span>
+            <input type="text" name="name" required placeholder="홍길동" />
+          </label>
+          <label>키(cm) <span class="hint-inline">선택</span>
+            <input type="number" name="height_cm" min="100" max="230" placeholder="178" />
+          </label>
+        </div>
+
+        <div class="skills-head" style="margin-top:14px">
+          <h3>역량 6항목 <span class="hint-inline">0~5점</span></h3>
+          <button type="button" class="link" id="resetSkills">초기화</button>
+        </div>
+        <p class="hint">포지션 구분 없이 모든 인원에게 동일한 6항목을 입력합니다.</p>
+
+        <div id="skillFields" class="skills"></div>
+
+        <label class="check" style="margin-top:10px">
+          <input type="checkbox" name="is_guest" /> 게스트로 표시
+        </label>
+
+        <button type="submit" class="primary block" style="margin-top:14px">인원 추가</button>
+        <div id="formMsg" class="msg"></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============= 우측: 목록 + 편성 ============= -->
+  <section class="col">
+    <div class="card sticky">
+      <div class="card-head">
+        <h2>③ 등록 인원 <span class="count" id="memberCount">0</span></h2>
+        <button type="button" class="ghost small" id="clearAll">전체 삭제</button>
+      </div>
+
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="table-scroll">
+        <table class="member-table">
+          <thead>
+            <tr><th>이름</th><th>레벨</th><th>키</th><th>역량 분포</th><th></th></tr>
+          </thead>
+          <tbody id="memberBody">
+            <tr class="empty"><td colspan="5">아직 등록된 인원이 없습니다.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="team-opt">
+        <label>팀 수
+          <select id="teamCount">
+            <option value="2">2팀</option>
+            <option value="3" selected>3팀</option>
+            <option value="4">4팀</option>
+          </select>
+        </label>
+      </div>
+
+      <button type="button" class="primary block big" id="generateBtn" disabled>
+        🎲 무작위 팀 편성하기
+      </button>
+      <div id="genMsg" class="msg"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ======================================================= 결과 섹션 -->
+<section id="resultSection" hidden>
+  <header class="result-bar">
+    <div class="wrap headline">
+      <h2 id="resultTitle">편성 결과</h2>
+      <div class="actions">
+        <button type="button" class="ghost" id="reshuffleBtn">🎲 다시 섞기</button>
+        <button type="button" class="ghost" id="copyBtn">텍스트 복사</button>
+        <button type="button" class="ghost" id="backBtn">← 인원 편집</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap" style="padding-bottom:48px">
+    <!-- 밸런스 평가 지표 -->
+    <section class="card metrics">
+      <h2>밸런스 평가 지표</h2>
+      <div class="metric-grid" id="metricGrid"></div>
+    </section>
+
+    <!-- 드래그 힌트 -->
+    <p class="drag-hint">
+      인원을 <strong>다른 팀 카드로 끌어다 놓으면</strong> 팀이 바뀌고 지표가 다시 계산됩니다.
+      이름을 클릭하면 역량 차트가 열립니다.
+      키보드에서는 인원을 선택 후 숫자키 <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> 으로 이동.
+      <span class="hint-inline">· 다시 섞기로 되돌리기 가능</span>
+    </p>
+
+    <section class="teams" id="teamsArea"></section>
+  </div>
+</section>
+
+<!-- ======================================================= 인원 상세 시트 -->
+<div class="sheet-backdrop" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetName">
+    <button type="button" class="sheet-close" id="sheetClose" aria-label="닫기">×</button>
+    <div class="sheet-head">
+      <h2 id="sheetName"></h2>
+      <p class="sheet-sub" id="sheetSub"></p>
+    </div>
+    <div class="tiles" id="sheetTiles"></div>
+    <div class="chart-wrap" id="chartWrap">
+      <div class="chart-title">역량 프로파일 <span class="hint-inline">0~5점 · 6항목</span></div>
+      <div id="radarBox"></div>
+      <div class="legend" id="chartLegend"></div>
+      <div class="tip" id="chartTip" hidden></div>
+    </div>
+    <div class="points" id="sheetPoints"></div>
+    <div id="sheetRoles"></div>
+    <details class="table-view">
+      <summary>역량 6항목 표로 보기</summary>
+      <div id="sheetTable"></div>
+    </details>
+  </div>
+</div>
+
+<script type="module" src="static/quick.js"></script>
+</body>
+</html>

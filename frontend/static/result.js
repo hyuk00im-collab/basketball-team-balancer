@@ -1,5 +1,5 @@
 /* 결과 화면 (WEBAPP_SPEC.md §3.3) */
-import { createMemberSheet } from "/static/member-sheet.js";
+import { createMemberSheet } from "./member-sheet.js";
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -91,7 +91,18 @@ function renderMetrics(m) {
     metricCard(
       "신장 편차",
       m.height_gap === null || m.height_gap === undefined ? "—" : m.height_gap.toFixed(1) + "cm",
-      "참고용"
+      "팀 평균 키 최대-최소"
+    ),
+    metricCard(
+      "나이 편차",
+      m.age_gap === null || m.age_gap === undefined ? "—" : m.age_gap.toFixed(1) + "세",
+      "팀 평균 나이 최대-최소"
+    ),
+    metricCard(
+      "정회원 배분",
+      m.guest_spread + "명 차이",
+      "팀별 정회원 수 · 목표 1명 이내",
+      m.guest_spread <= 1 ? "good" : "bad"
     ),
     metricCard(
       "역량 상위권 분산",
@@ -102,7 +113,7 @@ function renderMetrics(m) {
     metricCard(
       "신장 상위권 분산",
       m.height_separation_violations + "건 위반",
-      "2순위 · 포워드 키 1~3위",
+      "2순위 · 포워드/센터 키 1~3위",
       m.height_separation_violations === 0 ? "good" : "bad"
     ),
     metricCard(
@@ -150,8 +161,14 @@ function renderTeams(teams) {
     const s = team.summary;
     const pills = [
       `인원 <b>${team.members.length}</b>`,
-      `가드 <b>${s.guards}</b> · 포워드 <b>${s.forwards}</b>`,
+      [
+        `가드 <b>${s.guards}</b>`,
+        `포워드 <b>${s.forwards}</b>`,
+        ...(s.centers ? [`센터 <b>${s.centers}</b>`] : []),
+      ].join(" · "),
       `평균 키 <b>${s.avg_height ? s.avg_height.toFixed(1) : "—"}</b>`,
+      `평균 나이 <b>${s.avg_age ? s.avg_age.toFixed(1) : "—"}</b>`,
+      `정회원 <b>${s.regulars}</b>${s.guests ? ` · 게스트 <b>${s.guests}</b>` : ""}`,
       `창출형 <b>${s.creators}</b>`,
     ];
     if (s.bonus_players) pills.push(`55세 이상 <b>${s.bonus_players}</b>`);
@@ -235,11 +252,11 @@ function renderTeams(teams) {
         r.title = `${m.position} 역량 ${m.position_rank}위`;
         who.append(r);
       }
-      if (m.position === "포워드" && m.height_rank && m.height_rank <= 3) {
+      if ((m.position === "포워드" || m.position === "센터") && m.height_rank && m.height_rank <= 3) {
         const h = document.createElement("span");
         h.className = "hrank";
         h.textContent = `키 ${m.height_rank}위`;
-        h.title = `포워드 신장 ${m.height_rank}위`;
+        h.title = `${m.position} 신장 ${m.height_rank}위`;
         who.append(h);
       }
       if (m.age_bonus) {
@@ -387,7 +404,13 @@ function render(result) {
 /* ------------------------------------------------------------ 액션 */
 function bindActions() {
   $("#reshuffleBtn").addEventListener("click", async () => {
-    let options = { team_count: 3, use_height: true, iterations: 3000 };
+    let options = {
+      team_count: 3,
+      use_height: true,
+      use_age: true,
+      members_first: true,
+      iterations: 3000,
+    };
     try {
       const saved = JSON.parse(localStorage.getItem("balanceOptions") || "null");
       if (saved) options = saved;
@@ -433,7 +456,10 @@ function bindActions() {
     if (!RESULT) return;
     const names = currentNames();
     const lines = RESULT.teams.map((t, i) => {
-      const header = `[${names[i] || t.name}] 평균 ${t.summary.avg_level.toFixed(2)} · 가드 ${t.summary.guards} / 포워드 ${t.summary.forwards}`;
+      const s = t.summary;
+      const posParts = [`가드 ${s.guards}`, `포워드 ${s.forwards}`];
+      if (s.centers) posParts.push(`센터 ${s.centers}`);
+      const header = `[${names[i] || t.name}] 평균 ${s.avg_level.toFixed(2)} · ${posParts.join(" / ")}`;
       const roster = t.members
         .map((m) => `  - ${m.name} (${m.position}, ${m.level.toFixed(2)})`)
         .join("\n");

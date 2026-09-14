@@ -1,7 +1,7 @@
 /* 인원 입력 화면 (WEBAPP_SPEC.md §3.1) */
 const $ = (sel) => document.querySelector(sel);
 
-let SKILL_DEFS = { 가드: [], 포워드: [] };
+let SKILL_DEFS = { 가드: [], 포워드: [], 센터: [] };
 let members = [];
 
 /* ------------------------------------------------------------------ 유틸 */
@@ -127,11 +127,11 @@ function renderMembers() {
         r.title = "포지션별 역량 상위 3명은 서로 다른 팀에 배정됩니다";
         tdName.append(r);
       }
-      if (m.position === "포워드" && m.height_rank && m.height_rank <= 3) {
+      if ((m.position === "포워드" || m.position === "센터") && m.height_rank && m.height_rank <= 3) {
         const h = document.createElement("span");
         h.className = "hrank";
         h.textContent = `키 ${m.height_rank}위`;
-        h.title = "포워드 신장 상위 3명도 서로 다른 팀에 배정됩니다 (2순위)";
+        h.title = "포워드/센터 신장 상위 3명도 서로 다른 팀에 배정됩니다 (2순위)";
         tdName.append(h);
       }
       if (m.age_bonus) {
@@ -185,14 +185,18 @@ function renderStats() {
   if (!members.length) return;
 
   const guards = members.filter((m) => m.position === "가드").length;
+  const forwards = members.filter((m) => m.position === "포워드").length;
+  const centers = members.filter((m) => m.position === "센터").length;
   const avg = members.reduce((s, m) => s + m.level, 0) / members.length;
   const base = Math.floor(members.length / 3);
   const rem = members.length % 3;
   const sizes = [0, 1, 2].map((i) => base + (i < rem ? 1 : 0)).join("-");
 
   const seniors = members.filter((m) => m.age_bonus).length;
+  const posParts = [`가드 <b>${guards}</b>`, `포워드 <b>${forwards}</b>`];
+  if (centers) posParts.push(`센터 <b>${centers}</b>`);
   const pills = [
-    `가드 <b>${guards}</b> · 포워드 <b>${members.length - guards}</b>`,
+    posParts.join(" · "),
     `평균 레벨 <b>${avg.toFixed(2)}</b>`,
     `3팀 배분 <b>${sizes}</b>`,
   ];
@@ -308,7 +312,37 @@ function bindForm() {
   });
 }
 
+/** xlsx 를 내려받는다. 서버 모드/브라우저 모드 모두 fetch 를 거치게 한다. */
+async function downloadXlsx(url, filename, btn) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "준비 중…";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("파일을 만들지 못했습니다.");
+    const blob = await res.blob();
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(href);
+  } catch (err) {
+    setMsg($("#uploadMsg"), err.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 function bindActions() {
+  $("#dlSample").addEventListener("click", (e) =>
+    downloadXlsx("/api/sample", "basketball_level_sheet.xlsx", e.currentTarget)
+  );
+  $("#dlTemplate").addEventListener("click", (e) =>
+    downloadXlsx("/api/sample?empty=true", "basketball_level_template.xlsx", e.currentTarget)
+  );
+
   $("#clearAll").addEventListener("click", async () => {
     if (!members.length) return;
     if (!confirm("등록된 인원을 모두 삭제할까요?")) return;
@@ -324,6 +358,9 @@ function bindActions() {
         team_count: 3,
         seed: seedRaw === "" ? null : Number(seedRaw),
         use_height: $("#optHeight").checked,
+        use_age: $("#optAge").checked,
+        members_first: $("#optMembersFirst").checked,
+        randomness: Math.min(1, Math.max(0, Number($("#optRandom").value || 0))),
         iterations: Number($("#optIter").value || 3000),
       },
     };
@@ -335,7 +372,7 @@ function bindActions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      location.href = "/result";
+      location.href = "result.html";
     } catch (err) {
       setMsg($("#genMsg"), err.message, "error");
     } finally {

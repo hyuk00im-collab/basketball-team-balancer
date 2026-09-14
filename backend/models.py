@@ -5,9 +5,9 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from skills import GUARD, FORWARD, SKILLS_BY_POSITION
+from skills import GUARD, FORWARD, CENTER, SKILLS_BY_POSITION
 
-Position = Literal["가드", "포워드"]
+Position = Literal["가드", "포워드", "센터"]
 
 
 MIN_BIRTH_YEAR = 1930
@@ -104,15 +104,20 @@ class BalanceOptions(BaseModel):
     team_count: int = Field(3, ge=2, le=8)        # WEBAPP_SPEC.md §3.2 — 기본 K=3
     seed: Optional[int] = None                    # SPEC.md §5 — 재현 가능한 결과
     use_height: bool = True                       # 신장 편차 반영 여부(옵션)
+    use_age: bool = True                          # 나이 편차 반영 여부(옵션)
     iterations: int = Field(3000, ge=0, le=20000)  # Hill Climbing 반복 횟수
+    restarts: int = Field(4, ge=1, le=20)         # 무작위 초기해를 몇 번 만들어 볼지
+    randomness: float = Field(0.35, ge=0, le=1)   # 그리디 배정의 무작위성 (0=완전 그리디)
+    members_first: bool = True                    # 정회원을 먼저 팀에 배분한 뒤 게스트 배치
     lambda_position: float = Field(1.0, ge=0, le=10)
     lambda_role: float = Field(0.6, ge=0, le=10)
     lambda_height: float = Field(0.3, ge=0, le=10)
+    lambda_age: float = Field(0.5, ge=0, le=10)
     excluded_ids: List[str] = Field(default_factory=list)   # 편성 제외 인원
     locked: Dict[str, int] = Field(default_factory=dict)    # {member_id: team_index}
     separate_top_n: int = Field(3, ge=0, le=10)         # 1순위: 역량 상위 N명 분산 (0=해제)
     separate_height_top_n: int = Field(3, ge=0, le=10)  # 2순위: 신장 상위 N명 분산 (0=해제)
-    height_positions: List[str] = Field(default_factory=lambda: ["포워드"])
+    height_positions: List[str] = Field(default_factory=lambda: ["포워드", "센터"])
     age_bonus_from: int = Field(55, ge=10, le=99)       # 이 나이부터 가중치 적용
     age_bonus: float = Field(0.5, ge=0, le=5)           # 55세 이상 가중치 → 실질 전력에 가산
 
@@ -127,7 +132,11 @@ class TeamSummary(BaseModel):
     top_height: List[str] = Field(default_factory=list)   # 신장 상위권 표기 (예: "포워드 키 1위")
     guards: int
     forwards: int
+    centers: int = 0
+    regulars: int = 0                # 정회원 수 (게스트 제외)
+    guests: int = 0
     avg_height: Optional[float] = None
+    avg_age: Optional[float] = None
     roles: Dict[str, float] = Field(default_factory=dict)
     creators: int = 0
 
@@ -148,6 +157,8 @@ class Metrics(BaseModel):
     quota_violations: int
     role_balance_index: float
     height_gap: Optional[float] = None
+    age_gap: Optional[float] = None           # 팀 평균 나이 최대-최소 차
+    guest_spread: int = 0                     # 팀별 정회원 수 최대-최소 차 (목표 ≤1)
     creation_shortage_teams: int = 0
     top_separation_violations: int = 0        # 1순위: 역량 상위 N명 겹침 (목표 0)
     height_separation_violations: int = 0     # 2순위: 신장 상위 N명 겹침 (목표 0)

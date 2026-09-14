@@ -7,9 +7,10 @@
 
 GUARD = "가드"
 FORWARD = "포워드"
-POSITIONS = (GUARD, FORWARD)
+CENTER = "센터"
+POSITIONS = (GUARD, FORWARD, CENTER)
 
-# SPEC.md §2 — 열 순서 그대로 (E~N, O~X)
+# SPEC.md §2 — 열 순서 그대로 (F~O 가드, P~Y 포워드, Z~AI 센터)
 GUARD_SKILLS = [
     "볼핸들링·드리블",
     "코트비전·패스센스",
@@ -36,7 +37,20 @@ FORWARD_SKILLS = [
     "블록슛",
 ]
 
-SKILLS_BY_POSITION = {GUARD: GUARD_SKILLS, FORWARD: FORWARD_SKILLS}
+CENTER_SKILLS = [
+    "골밑득점력",
+    "포스트업무브",
+    "공격리바운드",
+    "수비리바운드",
+    "블록능력",
+    "수비포지셔닝",
+    "픽앤롤스크린",
+    "포스트자유투",
+    "빅맨패스",
+    "피지컬·박스아웃",
+]
+
+SKILLS_BY_POSITION = {GUARD: GUARD_SKILLS, FORWARD: FORWARD_SKILLS, CENTER: CENTER_SKILLS}
 
 # TEAM_BALANCE_SPEC.md §2.1 / §2.2
 # 4개 역할군은 포지션 간 비교가 가능하도록 공통 키를 사용한다.
@@ -62,6 +76,12 @@ ROLE_MAP = {
         "creation": ["패싱센스", "스크린능력"],
         "defense": ["수비능력"],
         "impact": ["리바운드", "박스아웃·몸싸움", "블록슛"],
+    },
+    CENTER: {
+        "scoring": ["골밑득점력", "포스트업무브", "포스트자유투"],
+        "creation": ["빅맨패스", "픽앤롤스크린"],
+        "defense": ["수비포지셔닝", "블록능력"],
+        "impact": ["공격리바운드", "수비리바운드", "피지컬·박스아웃"],
     },
 }
 

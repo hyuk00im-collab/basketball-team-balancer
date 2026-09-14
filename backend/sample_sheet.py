@@ -21,7 +21,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from parser import LAYOUT
-from skills import FORWARD, FORWARD_SKILLS, GUARD, GUARD_SKILLS
+from skills import CENTER, CENTER_SKILLS, FORWARD, FORWARD_SKILLS, GUARD, GUARD_SKILLS
 
 FILENAME = "basketball_level_sheet.xlsx"
 
@@ -42,6 +42,10 @@ COL_G_FIRST = get_column_letter(LAYOUT["guard_start"])       # F
 COL_G_LAST = get_column_letter(LAYOUT["guard_start"] + 9)    # O
 COL_F_FIRST = get_column_letter(LAYOUT["forward_start"])     # P
 COL_F_LAST = get_column_letter(LAYOUT["forward_start"] + 9)  # Y
+COL_C_FIRST = get_column_letter(LAYOUT["center_start"])      # Z
+COL_C_LAST = get_column_letter(LAYOUT["center_start"] + 9)   # AI
+
+CENTER_FILL = PatternFill("solid", fgColor="FFF5F0FF")  # 센터 역량 헤더
 
 AUTO_FILL = PatternFill("solid", fgColor="FFEDEFF3")    # 자동계산 열
 GUARD_FILL = PatternFill("solid", fgColor="FFEAF0FF")   # 가드 역량 헤더
@@ -58,14 +62,17 @@ def age_formula(row: int) -> str:
 
 
 def level_formula(row: int) -> str:
-    """포지션에 따라 가드 블록 / 포워드 블록 중 하나만 평균낸다."""
+    """포지션에 따라 가드/포워드/센터 블록 중 하나만 평균낸다."""
     guard = f"{COL_G_FIRST}{row}:{COL_G_LAST}{row}"
     forward = f"{COL_F_FIRST}{row}:{COL_F_LAST}{row}"
+    center = f"{COL_C_FIRST}{row}:{COL_C_LAST}{row}"
     pos = f"${COL_POSITION}{row}"
     return (
         f'=IF(${COL_NAME}{row}="","",'
         f'IF({pos}="{GUARD}",IF(COUNT({guard})=0,"",AVERAGE({guard})),'
-        f'IF({pos}="{FORWARD}",IF(COUNT({forward})=0,"",AVERAGE({forward})),"")))'
+        f'IF({pos}="{FORWARD}",IF(COUNT({forward})=0,"",AVERAGE({forward})),'
+        f'IF({pos}="{CENTER}",IF(COUNT({center})=0,"",AVERAGE({center})),""))'
+        f'))'
     )
 
 
@@ -78,14 +85,16 @@ def _add_rules(ws, last_row: int) -> None:
     """조건부 서식 + 데이터 유효성 검사 (포지션별 역량 블록 분리)."""
     guard_range = f"{COL_G_FIRST}{FIRST_DATA_ROW}:{COL_G_LAST}{last_row}"
     forward_range = f"{COL_F_FIRST}{FIRST_DATA_ROW}:{COL_F_LAST}{last_row}"
+    center_range = f"{COL_C_FIRST}{FIRST_DATA_ROW}:{COL_C_LAST}{last_row}"
     pos = f"${COL_POSITION}{FIRST_DATA_ROW}"  # 열 고정 + 행 상대참조
 
     # 조건부 서식은 예시행(4행)부터 걸어 동작을 눈으로 확인할 수 있게 한다.
-    # 포지션이 해당 값이 아니면 그 블록을 가린다 (포지션 미입력 행은 양쪽 모두 가림).
+    # 포지션이 해당 값이 아니면 그 블록을 가린다 (포지션 미입력 행은 모두 가림).
     cf_pos = f"${COL_POSITION}{EXAMPLE_ROW}"
     for position, first_col, last_col in (
         (GUARD, COL_G_FIRST, COL_G_LAST),
         (FORWARD, COL_F_FIRST, COL_F_LAST),
+        (CENTER, COL_C_FIRST, COL_C_LAST),
     ):
         ws.conditional_formatting.add(
             f"{first_col}{EXAMPLE_ROW}:{last_col}{last_row}",
@@ -100,11 +109,11 @@ def _add_rules(ws, last_row: int) -> None:
     # 포지션: 드롭다운
     dv_pos = DataValidation(
         type="list",
-        formula1=f'"{GUARD},{FORWARD}"',
+        formula1=f'"{GUARD},{FORWARD},{CENTER}"',
         allow_blank=True,
         showErrorMessage=True,
         errorTitle="포지션 확인",
-        error=f"'{GUARD}' 또는 '{FORWARD}'만 선택할 수 있습니다.",
+        error=f"'{GUARD}', '{FORWARD}', '{CENTER}' 중 하나를 선택할 수 있습니다.",
     )
     ws.add_data_validation(dv_pos)
     dv_pos.add(f"{COL_POSITION}{FIRST_DATA_ROW}:{COL_POSITION}{last_row}")
@@ -113,6 +122,7 @@ def _add_rules(ws, last_row: int) -> None:
     for position, rng, first_col in (
         (GUARD, guard_range, COL_G_FIRST),
         (FORWARD, forward_range, COL_F_FIRST),
+        (CENTER, center_range, COL_C_FIRST),
     ):
         cell = f"{first_col}{FIRST_DATA_ROW}"
         dv = DataValidation(
@@ -137,15 +147,16 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     guide.title = "작성안내"
     guide["A1"] = "이 시트는 사람이 읽는 안내용이며 프로그램 파싱 대상이 아닙니다."
     guide["A3"] = "1) '선수레벨' 시트 3행이 헤더, 4행은 예시행(파싱 제외), 5행부터 실제 데이터입니다."
-    guide["A4"] = "2) 포지션(E열)은 드롭다운에서 '가드' 또는 '포워드'를 고릅니다."
+    guide["A4"] = "2) 포지션(E열)은 드롭다운에서 '가드', '포워드', '센터' 중 하나를 고릅니다."
     guide["A5"] = "3) 역량 점수는 0~5, 0.5 단위입니다."
     guide["A7"] = "※ 포지션을 고르면 해당 포지션의 역량 블록만 활성화됩니다."
-    guide["A8"] = "   - 가드  → F~O열(가드 역량 10항목)만 입력, P~Y열은 회색으로 가려집니다."
-    guide["A9"] = "   - 포워드 → P~Y열(포워드 역량 10항목)만 입력, F~O열은 회색으로 가려집니다."
-    guide["A10"] = "   - 가려진 블록에 값을 넣으려 하면 입력이 거부됩니다."
-    guide["A12"] = "※ 회색 배경 열(C 나이, Z 역량평균)은 수식이므로 직접 입력하지 마세요."
+    guide["A8"] = "   - 가드  → F~O열(가드 역량 10항목)만 입력"
+    guide["A9"] = "   - 포워드 → P~Y열(포워드 역량 10항목)만 입력"
+    guide["A10"] = "   - 센터  → Z~AI열(센터 역량 10항목)만 입력"
+    guide["A11"] = "   - 가려진 블록에 값을 넣으려 하면 입력이 거부됩니다."
+    guide["A12"] = "※ 회색 배경 열(C 나이, AJ 역량평균)은 수식이므로 직접 입력하지 마세요."
     guide["A13"] = '   나이   =IF(B5="","",YEAR(TODAY())-B5)  → 파일을 여는 시점의 연도 기준'
-    guide["A14"] = "   역량평균 = 포지션이 가드면 F~O 평균, 포워드면 P~Y 평균 (자동 분기)"
+    guide["A14"] = "   역량평균 = 포지션이 가드면 F~O 평균, 포워드면 P~Y 평균, 센터면 Z~AI 평균 (자동 분기)"
     guide["A16"] = f"※ 수식·서식은 {FIRST_DATA_ROW + TEMPLATE_ROWS - 1}행까지 미리 깔려 있습니다."
     guide["A17"] = "   그 아래로 더 필요하면 마지막 행을 복사해 붙여넣으세요."
     for key in ("A7", "A12", "A16"):
@@ -160,6 +171,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
         ["이름", "출생년도", "나이", "키(cm)", "포지션"]
         + GUARD_SKILLS
         + FORWARD_SKILLS
+        + CENTER_SKILLS
         + ["역량평균"]
     )
     for col, title in enumerate(header, start=1):
@@ -171,6 +183,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     for i in range(10):  # 역량 블록 헤더 색 구분
         ws.cell(row=3, column=LAYOUT["guard_start"] + i).fill = GUARD_FILL
         ws.cell(row=3, column=LAYOUT["forward_start"] + i).fill = FORWARD_FILL
+        ws.cell(row=3, column=LAYOUT["center_start"] + i).fill = CENTER_FILL
     ws.row_dimensions[3].height = 44
 
     this_year = date.today().year
@@ -182,18 +195,24 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
         ws.cell(row=4, column=LAYOUT["guard_start"] + i, value=3.5)
     _add_row_formulas(ws, 4)
 
+    _POS_CYCLE = [GUARD, GUARD, FORWARD, FORWARD, CENTER]  # 2:2:1 비율
     rng = random.Random(seed)
     for offset in range(rows):
         row = FIRST_DATA_ROW + offset
         name = NAMES[offset % len(NAMES)]
-        position = GUARD if offset % 2 == 0 else FORWARD
+        position = _POS_CYCLE[offset % len(_POS_CYCLE)]
         base = rng.choice([2.0, 2.5, 3.0, 3.5, 4.0])
         ws.cell(row=row, column=LAYOUT["name"], value=name)
         ws.cell(row=row, column=LAYOUT["birth_year"], value=this_year - rng.randint(22, 48))
-        ws.cell(row=row, column=LAYOUT["height"], value=rng.randint(168, 192))
+        ws.cell(row=row, column=LAYOUT["height"], value=rng.randint(168, 200))
         ws.cell(row=row, column=LAYOUT["position"], value=position)
 
-        start = LAYOUT["guard_start"] if position == GUARD else LAYOUT["forward_start"]
+        if position == GUARD:
+            start = LAYOUT["guard_start"]
+        elif position == FORWARD:
+            start = LAYOUT["forward_start"]
+        else:
+            start = LAYOUT["center_start"]
         for i in range(10):
             score = min(5.0, max(0.0, base + rng.choice([-1.0, -0.5, 0, 0, 0.5, 1.0])))
             ws.cell(row=row, column=start + i, value=score)
@@ -207,7 +226,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     ws.column_dimensions[COL_NAME].width = 12
     ws.column_dimensions[COL_BIRTH].width = 10
     ws.column_dimensions[COL_POSITION].width = 10
-    for col in range(LAYOUT["guard_start"], LAYOUT["forward_start"] + 10):
+    for col in range(LAYOUT["guard_start"], LAYOUT["center_start"] + 10):
         ws.column_dimensions[get_column_letter(col)].width = 11
     ws.column_dimensions[get_column_letter(LAYOUT["level"])].width = 10
     ws.freeze_panes = f"{COL_G_FIRST}4"  # 이름~포지션 열과 헤더 고정

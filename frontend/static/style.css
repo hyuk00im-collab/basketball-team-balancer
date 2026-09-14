@@ -9,6 +9,7 @@
   --accent-dark: #c94d1c;
   --guard: #2563eb;
   --forward: #059669;
+  --center: #7c3aed;
   --warn-bg: #fff7ed;
   --warn-line: #fdba74;
   --err: #dc2626;
@@ -181,6 +182,7 @@ button { font: inherit; cursor: pointer; border-radius: 8px; }
 .pos { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 1px 6px; }
 .pos.가드 { color: var(--guard); background: #eaf0ff; }
 .pos.포워드 { color: var(--forward); background: #e7f6f0; }
+.pos.센터 { color: var(--center); background: #f3f0ff; }
 .est { font-size: 10.5px; color: var(--muted); background: #f0f1f4; border-radius: 4px; padding: 1px 4px; margin-left: 4px; }
 .guest { font-size: 10.5px; color: var(--accent); background: #fdf0ea; border-radius: 4px; padding: 1px 4px; margin-left: 4px; }
 .rank { font-size: 10.5px; font-weight: 700; color: #8a6100; background: #fdf3d6; border-radius: 4px; padding: 1px 5px; margin-left: 4px; white-space: nowrap; }
@@ -388,3 +390,17 @@ body.no-scroll { overflow: hidden; }
 .team-card.drop-target .team-head { background: #fdf0ea; }
 
 .teams.busy { opacity: .55; pointer-events: none; }
+
+/* ==================================================== Pyodide 부팅 안내 (Pages) */
+.boot-overlay {
+  position: fixed; inset: 0; z-index: 80; background: rgba(22, 24, 29, .62);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.boot-card {
+  background: var(--surface); border-radius: 14px; padding: 26px 30px; text-align: center;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, .3); max-width: 380px;
+}
+.boot-card .spinner { margin: 0 auto 14px; }
+.boot-title { margin: 0; font-size: 15px; font-weight: 700; }
+.boot-step { margin: 6px 0 0; font-size: 13px; color: var(--accent); min-height: 1.2em; }
+.boot-note { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
