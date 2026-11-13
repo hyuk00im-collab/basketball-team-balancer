@@ -1,4 +1,4 @@
-/* 약식 팀 편성 — 포지션 구분 없음, 6항목 + 키, 무작위 랜덤 */
+/* 약식 팀 편성 — 가드/포워드 2분류, 6항목 + 키, 무작위 랜덤 */
 import { createQuickMemberSheet } from "./quick-sheet.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -14,6 +14,8 @@ const SKILL_DEFS = [
 
 const TEAM_COLORS = ["#e8622c", "#2563eb", "#059669", "#7c3aed"];
 const TEAM_NAMES  = ["팀 A", "팀 B", "팀 C", "팀 D"];
+const POSITIONS   = ["가드", "포워드"];
+const DEFAULT_POSITION = POSITIONS[0];
 
 const STORAGE_KEY = "quick_members";
 let members    = [];
@@ -97,7 +99,7 @@ function renderMembers() {
   $("#memberCount").textContent = members.length;
   body.innerHTML = "";
   if (!members.length) {
-    body.innerHTML = '<tr class="empty"><td colspan="5">아직 등록된 인원이 없습니다.</td></tr>';
+    body.innerHTML = '<tr class="empty"><td colspan="7">아직 등록된 인원이 없습니다.</td></tr>';
   } else {
     members.forEach((m) => {
       const tr = document.createElement("tr");
@@ -107,8 +109,17 @@ function renderMembers() {
       if (m.is_guest)  { const g = document.createElement("span"); g.className = "guest"; g.textContent = "게스트"; tdName.append(g); }
       if (m.estimated) { const e = document.createElement("span"); e.className = "est";   e.textContent = "추정";   tdName.append(e); }
 
+      const tdPos = document.createElement("td");
+      const posTag = document.createElement("span");
+      posTag.className = "pos " + (m.position || DEFAULT_POSITION);
+      posTag.textContent = m.position || DEFAULT_POSITION;
+      tdPos.append(posTag);
+
       const tdLv = document.createElement("td");
       tdLv.className = "num"; tdLv.textContent = m.level.toFixed(1);
+
+      const tdAge = document.createElement("td");
+      tdAge.className = "num"; tdAge.textContent = m.age ? m.age : "—";
 
       const tdH = document.createElement("td");
       tdH.className = "num"; tdH.textContent = m.height_cm ? m.height_cm + "cm" : "—";
@@ -127,7 +138,7 @@ function renderMembers() {
       btn.addEventListener("click", () => { members = members.filter((x) => x.id !== m.id); saveMembers(); renderMembers(); });
       tdDel.append(btn);
 
-      tr.append(tdName, tdLv, tdH, tdBars, tdDel);
+      tr.append(tdName, tdPos, tdLv, tdAge, tdH, tdBars, tdDel);
       body.append(tr);
     });
   }
@@ -144,14 +155,22 @@ function renderStats() {
   const rem  = members.length % k;
   const sizes = Array.from({ length: k }, (_, i) => base + (i < rem ? 1 : 0)).join("-");
   const withHeight = members.filter((m) => m.height_cm).length;
+  const guards  = members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length;
+  const forwards = members.length - guards;
   const pills = [
     `총원 <b>${members.length}</b>명`,
+    `가드 <b>${guards}</b> · 포워드 <b>${forwards}</b>`,
     `평균 레벨 <b>${avg.toFixed(1)}</b>`,
     `${k}팀 배분 <b>${sizes}</b>`,
   ];
   if (withHeight) {
     const avgH = members.filter((m) => m.height_cm).reduce((s, m) => s + m.height_cm, 0) / withHeight;
     pills.push(`평균 키 <b>${avgH.toFixed(1)}cm</b>`);
+  }
+  const withAge = members.filter((m) => m.age).length;
+  if (withAge) {
+    const avgAge = members.filter((m) => m.age).reduce((s, m) => s + m.age, 0) / withAge;
+    pills.push(`평균 나이 <b>${avgAge.toFixed(1)}세</b>`);
   }
   pills.forEach((html) => {
     const p = document.createElement("span"); p.className = "pill"; p.innerHTML = html; row.append(p);
@@ -228,45 +247,19 @@ function metricCard(label, value, note, state) {
 function renderMetrics(teams) {
   const grid = $("#metricGrid"); grid.innerHTML = "";
 
-  const avgs      = teams.map((t) => t.members.reduce((s, m) => s + m.level, 0) / Math.max(1, t.members.length));
-  const globalAvg = allMembers().reduce((s, m) => s + m.level, 0) / Math.max(1, allMembers().length);
-  const spread    = Math.max(...avgs) - Math.min(...avgs);
-  const devRate   = globalAvg > 0 ? (spread / globalAvg) * 100 : 0;
-
-  // 항목별 팀간 최대 편차
-  const skillSpreads = SKILL_DEFS.map(({ key, label }) => {
-    const sAvgs = teams.map((t) =>
-      t.members.reduce((a, m) => a + (m.skills[key] ?? 3), 0) / Math.max(1, t.members.length)
-    );
-    return { label, spread: Math.max(...sAvgs) - Math.min(...sAvgs) };
-  });
-  const worstSkill = skillSpreads.reduce((a, b) => a.spread > b.spread ? a : b);
-
-  // 키 편차 (있는 인원만)
-  const heightAvgs = teams.map((t) => {
-    const withH = t.members.filter((m) => m.height_cm);
-    return withH.length ? withH.reduce((s, m) => s + m.height_cm, 0) / withH.length : null;
-  });
-  const validH = heightAvgs.filter((v) => v !== null);
-  const heightSpread = validH.length >= 2 ? Math.max(...validH) - Math.min(...validH) : null;
+  const sizes      = teams.map((t) => t.members.length);
+  const sizeSpread = Math.max(...sizes) - Math.min(...sizes);
+  const guardCounts = teams.map((t) => t.members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length);
+  const guardSpread = Math.max(...guardCounts) - Math.min(...guardCounts);
 
   grid.append(
-    metricCard("레벨 편차율", devRate.toFixed(1) + "%",
-      "팀 평균 기준 · 목표 5% 이내", devRate <= 5 ? "good" : "bad"),
-    metricCard("팀간 레벨 편차", spread.toFixed(2),
-      "팀 평균 최대 − 최소", spread <= 0.3 ? "good" : spread <= 0.6 ? "" : "bad"),
-    metricCard("키 편차", heightSpread !== null ? heightSpread.toFixed(1) + "cm" : "—",
-      "팀 평균 키 최대 − 최소 · 참고용", ""),
-    metricCard("항목 최대 편차", worstSkill.spread.toFixed(2),
-      `${worstSkill.label}에서 가장 큼`, ""),
-    ...avgs.map((a, i) => metricCard(
-      `${teams[i].name} 평균`, a.toFixed(2),
-      (() => {
-        const withH = teams[i].members.filter((m) => m.height_cm);
-        const hStr  = withH.length ? ` · 키 ${(withH.reduce((s, m) => s + m.height_cm, 0) / withH.length).toFixed(0)}cm` : "";
-        const diff  = a - globalAvg;
-        return `${diff >= 0 ? "+" : ""}${diff.toFixed(2)}${hStr}`;
-      })(), ""
+    metricCard("총 인원", String(allMembers().length), `${teams.length}팀 배분`, ""),
+    metricCard("팀별 인원수", sizes.join("-"), "최대 − 최소", sizeSpread <= 1 ? "good" : "bad"),
+    metricCard("가드 인원수 편차", String(guardSpread), "팀간 가드 수 최대 − 최소", guardSpread <= 1 ? "good" : "bad"),
+    ...teams.map((t, i) => metricCard(
+      `${t.name} 구성`,
+      `가드 ${guardCounts[i]} · 포워드 ${t.members.length - guardCounts[i]}`,
+      `인원 ${t.members.length}명`, ""
     ))
   );
 }
@@ -296,11 +289,12 @@ function renderResult(teams, scroll = true) {
   const box = $("#teamsArea"); box.innerHTML = "";
 
   teams.forEach((team, idx) => {
-    const avg       = team.members.reduce((s, m) => s + m.level, 0) / Math.max(1, team.members.length);
-    const globalAvg = allMembers().reduce((s, m) => s + m.level, 0) / Math.max(1, allMembers().length);
-    const diff      = avg - globalAvg;
-    const withH     = team.members.filter((m) => m.height_cm);
-    const avgH      = withH.length ? withH.reduce((s, m) => s + m.height_cm, 0) / withH.length : null;
+    const guardCount   = team.members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length;
+    const forwardCount = team.members.length - guardCount;
+    const withAge    = team.members.filter((m) => m.age);
+    const withHeight = team.members.filter((m) => m.height_cm);
+    const avgAge    = withAge.length    ? withAge.reduce((s, m) => s + m.age, 0) / withAge.length : null;
+    const avgHeight = withHeight.length ? withHeight.reduce((s, m) => s + m.height_cm, 0) / withHeight.length : null;
 
     const card = document.createElement("div");
     card.className = "team-card q-team-card";
@@ -312,16 +306,14 @@ function renderResult(teams, scroll = true) {
     nameEl.contentEditable = "true"; nameEl.spellcheck = false; nameEl.textContent = team.name;
     nameEl.addEventListener("blur", () => { team.name = nameEl.textContent.trim() || team.name; });
     const lvEl = document.createElement("div"); lvEl.className = "team-level";
-    lvEl.innerHTML =
-      `평균 <b>${avg.toFixed(2)}</b>` +
-      (avgH ? ` · 키 <b>${avgH.toFixed(0)}cm</b>` : "") +
-      `<br><span class="diff ${diff >= 0 ? "pos" : "neg"}">${diff >= 0 ? "+" : ""}${diff.toFixed(2)}</span>`;
+    lvEl.innerHTML = `인원 <b>${team.members.length}</b>명`;
     head.append(nameEl, lvEl);
 
     /* 요약 pills */
     const sum = document.createElement("div"); sum.className = "team-summary";
-    const pills = [`인원 <b>${team.members.length}</b>명`];
-    if (avgH) pills.push(`평균 키 <b>${avgH.toFixed(0)}cm</b>`);
+    const pills = [`가드 <b>${guardCount}</b>`, `포워드 <b>${forwardCount}</b>`];
+    if (avgAge !== null) pills.push(`평균 나이 <b>${avgAge.toFixed(1)}세</b>`);
+    if (avgHeight !== null) pills.push(`평균 키 <b>${avgHeight.toFixed(1)}cm</b>`);
     pills.forEach((html) => {
       const p = document.createElement("span"); p.className = "pill"; p.innerHTML = html; sum.append(p);
     });
@@ -357,30 +349,17 @@ function renderResult(teams, scroll = true) {
       who.append(nm);
       if (m.is_guest)  { const g = document.createElement("span"); g.className = "guest"; g.textContent = "게스트"; who.append(g); }
       if (m.estimated) { const e = document.createElement("span"); e.className = "est";   e.textContent = "추정";   who.append(e); }
-      if (m.height_cm) {
+      const metaParts = [m.age ? `${m.age}세` : null, m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean);
+      if (metaParts.length) {
         const meta = document.createElement("span"); meta.className = "meta";
-        meta.textContent = m.height_cm + "cm"; who.append(meta);
+        meta.textContent = metaParts.join(" · "); who.append(meta);
       }
 
-      const right  = document.createElement("div");
-      const lvNum  = document.createElement("div"); lvNum.className = "lv"; lvNum.textContent = m.level.toFixed(2);
-      const bar    = document.createElement("div"); bar.className = "bar";
-      const fill   = document.createElement("i");   fill.style.width = Math.max(2, (m.level / 5) * 100) + "%";
-      bar.append(fill); right.append(lvNum, bar);
+      const posTag = document.createElement("span");
+      posTag.className = "pos " + (m.position || DEFAULT_POSITION);
+      posTag.textContent = m.position || DEFAULT_POSITION;
 
-      li.append(who, right); ul.append(li);
-    });
-
-    /* 항목별 팀 평균 */
-    const roles = document.createElement("div"); roles.className = "roles";
-    SKILL_DEFS.forEach(({ key, label }) => {
-      const avgS = team.members.reduce((a, m) => a + (m.skills[key] ?? 3), 0) / Math.max(1, team.members.length);
-      const line = document.createElement("div"); line.className = "role-line";
-      const lbl  = document.createElement("span"); lbl.textContent = label.split("/")[0];
-      const barW = document.createElement("div"); barW.className = "rbar";
-      const i    = document.createElement("i");   i.style.width = (avgS / 5) * 100 + "%"; barW.append(i);
-      const num  = document.createElement("span"); num.style.textAlign = "right"; num.textContent = avgS.toFixed(2);
-      line.append(lbl, barW, num); roles.append(line);
+      li.append(who, posTag); ul.append(li);
     });
 
     /* 드롭 이벤트 */
@@ -397,7 +376,7 @@ function renderResult(teams, scroll = true) {
       if (id && from !== idx) moveMember(id, idx);
     });
 
-    card.append(head, sum, ul, roles);
+    card.append(head, sum, ul);
     box.append(card);
   });
 
@@ -407,29 +386,40 @@ function renderResult(teams, scroll = true) {
 /* ------------------------------------------------------------------ 텍스트 복사 */
 function buildCopyText(teams) {
   return teams.map((t) => {
-    const avg  = (t.members.reduce((s, m) => s + m.level, 0) / Math.max(1, t.members.length)).toFixed(1);
-    const list = t.members.map((m) =>
-      `  ${m.name}${m.is_guest ? "(게스트)" : ""} ${m.level.toFixed(1)}${m.height_cm ? " " + m.height_cm + "cm" : ""}`
-    ).join("\n");
-    return `【${t.name}】 (${t.members.length}명, 평균 ${avg})\n${list}`;
+    const guardCount = t.members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length;
+    const list = t.members.map((m) => {
+      const extra = [m.age ? `${m.age}세` : null, m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean).join(" · ");
+      return `  ${m.name}(${m.position || DEFAULT_POSITION})${extra ? " " + extra : ""}${m.is_guest ? " 게스트" : ""}`;
+    }).join("\n");
+    return `【${t.name}】 (${t.members.length}명, 가드 ${guardCount}·포워드 ${t.members.length - guardCount})\n${list}`;
   }).join("\n\n");
 }
 
 /* ------------------------------------------------------------------ 이벤트 바인딩 */
 function bindForm() {
+  // 출생년도 입력 시 현재 연도 기준으로 나이 자동 계산 (정밀 편성과 동일한 방식)
+  $("#birthYear").addEventListener("input", () => {
+    const by = Number($("#birthYear").value);
+    const thisYear = new Date().getFullYear();
+    $("#ageInput").value = by >= 1930 && by <= thisYear ? thisYear - by : "";
+  });
+
   $("#memberForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const fd      = new FormData(e.target);
     const name    = (fd.get("name") || "").trim();
     if (!name) return;
-    const height_cm = fd.get("height_cm") ? Number(fd.get("height_cm")) : null;
+    const position   = POSITIONS.includes(fd.get("position")) ? fd.get("position") : DEFAULT_POSITION;
+    const birth_year = fd.get("birth_year") ? Number(fd.get("birth_year")) : null;
+    const age        = birth_year ? new Date().getFullYear() - birth_year : (fd.get("age") ? Number(fd.get("age")) : null);
+    const height_cm  = fd.get("height_cm") ? Number(fd.get("height_cm")) : null;
     const skills  = collectSkills();
     const level   = calcLevel(skills);
-    members.push({ id: nextId++, name, height_cm, skills, level, is_guest: fd.get("is_guest") === "on", estimated: false });
+    members.push({ id: nextId++, name, position, birth_year, age, height_cm, skills, level, is_guest: fd.get("is_guest") === "on", estimated: false });
     saveMembers(); renderMembers();
     const msg = $("#formMsg"); msg.className = "msg ok";
-    msg.textContent = `'${name}' 추가 완료 · 레벨 ${level.toFixed(1)}${height_cm ? " · " + height_cm + "cm" : ""}`;
-    e.target.reset(); resetSkillFields(); e.target.querySelector("input[name=name]").focus();
+    msg.textContent = `'${name}'(${position}) 추가 완료 · 레벨 ${level.toFixed(1)}${age ? " · " + age + "세" : ""}${height_cm ? " · " + height_cm + "cm" : ""}`;
+    e.target.reset(); resetSkillFields(); $("#ageInput").value = ""; e.target.querySelector("input[name=name]").focus();
   });
   $("#resetSkills").addEventListener("click", resetSkillFields);
 }

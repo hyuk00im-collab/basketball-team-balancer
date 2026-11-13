@@ -12,7 +12,7 @@
   <div class="wrap headline">
     <div>
       <h1><span class="ball">🏀</span> 약식 팀 편성</h1>
-      <p class="sub">6가지 역량 항목으로 빠르게 입력하고, <strong>무작위 랜덤</strong>으로 팀을 나눕니다. 포지션 구분 없음.</p>
+      <p class="sub">이름 · 포지션(가드/포워드) · 6가지 역량 항목으로 빠르게 입력하고, <strong>무작위 랜덤</strong>으로 팀을 나눕니다.</p>
     </div>
     <div class="actions">
       <a class="ghost" href="index.html">정밀 편성 →</a>
@@ -30,8 +30,8 @@
     <div class="card">
       <h2>① 엑셀 업로드</h2>
       <p class="hint">
-        <code>선수레벨</code> 시트에 <code>이름</code> 헤더와 6가지 역량 항목
-        (<code>슈팅·드리블·패스/시야·수비·리바운드·체력/스피드</code>)이 있는
+        <code>선수레벨</code> 시트에 <code>이름</code> · <code>포지션</code>(가드/포워드) 헤더와
+        6가지 역량 항목 (<code>슈팅·드리블·패스/시야·수비·리바운드·체력/스피드</code>)이 있는
         <code>.xlsx</code> 파일을 올려주세요.
       </p>
       <div class="dl-row">
@@ -54,6 +54,18 @@
           <label style="grid-column:1/-1">이름 <span class="req">*</span>
             <input type="text" name="name" required placeholder="홍길동" />
           </label>
+          <label>포지션 <span class="req">*</span>
+            <select name="position" required>
+              <option value="가드">가드</option>
+              <option value="포워드">포워드</option>
+            </select>
+          </label>
+          <label>출생년도 <span class="hint-inline">선택</span>
+            <input type="number" name="birth_year" id="birthYear" min="1930" max="2100" placeholder="1993" />
+          </label>
+          <label>나이 <span class="hint-inline">출생년도 입력 시 자동</span>
+            <input type="number" name="age" id="ageInput" min="10" max="80" placeholder="자동 계산" />
+          </label>
           <label>키(cm) <span class="hint-inline">선택</span>
             <input type="number" name="height_cm" min="100" max="230" placeholder="178" />
           </label>
@@ -63,7 +75,7 @@
           <h3>역량 6항목 <span class="hint-inline">0~5점</span></h3>
           <button type="button" class="link" id="resetSkills">초기화</button>
         </div>
-        <p class="hint">포지션 구분 없이 모든 인원에게 동일한 6항목을 입력합니다.</p>
+        <p class="hint">가드/포워드 구분 없이 모든 인원에게 동일한 6항목을 입력합니다.</p>
 
         <div id="skillFields" class="skills"></div>
 
@@ -90,10 +102,10 @@
       <div class="table-scroll">
         <table class="member-table">
           <thead>
-            <tr><th>이름</th><th>레벨</th><th>키</th><th>역량 분포</th><th></th></tr>
+            <tr><th>이름</th><th>포지션</th><th>레벨</th><th>나이</th><th>키</th><th>역량 분포</th><th></th></tr>
           </thead>
           <tbody id="memberBody">
-            <tr class="empty"><td colspan="5">아직 등록된 인원이 없습니다.</td></tr>
+            <tr class="empty"><td colspan="7">아직 등록된 인원이 없습니다.</td></tr>
           </tbody>
         </table>
       </div>
@@ -101,8 +113,8 @@
       <div class="team-opt">
         <label>팀 수
           <select id="teamCount">
-            <option value="2">2팀</option>
-            <option value="3" selected>3팀</option>
+            <option value="2" selected>2팀</option>
+            <option value="3">3팀</option>
             <option value="4">4팀</option>
           </select>
         </label>

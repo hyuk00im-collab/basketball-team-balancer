@@ -8,7 +8,9 @@ from typing import Dict, List, Optional, Tuple
 
 from openpyxl import load_workbook
 
-from quick_sample_sheet import LAYOUT, QUICK_SKILLS
+from quick_sample_sheet import LAYOUT, QUICK_POSITIONS, QUICK_SKILLS
+
+DEFAULT_POSITION = QUICK_POSITIONS[0]  # 가드
 
 # 헤더명 → 내부 key (슬래시·띄어쓰기 포함 표기 허용)
 HEADER_ALIAS: Dict[str, str] = {
@@ -84,6 +86,8 @@ def _resolve_columns(header: Tuple) -> Tuple[Dict, Dict[str, int]]:
             found.setdefault("age", col)
         elif key.startswith("키"):
             found.setdefault("height", col)
+        elif key == "포지션":
+            found.setdefault("position", col)
         elif key == "역량평균":
             found.setdefault("level", col)
         elif key in HEADER_ALIAS:
@@ -99,6 +103,7 @@ def _resolve_columns(header: Tuple) -> Tuple[Dict, Dict[str, int]]:
         "birth_year": found.get("birth_year"),
         "age":        found.get("age",        LAYOUT["age"]),
         "height":     found.get("height",     LAYOUT.get("height")),
+        "position":   found.get("position",   LAYOUT.get("position")),
         "level":      found.get("level",      LAYOUT["level"]),
     }
     return columns, skill_cols
@@ -195,6 +200,17 @@ def parse_workbook(data: bytes) -> Tuple[List[Dict], List[str]]:
             warnings.append(f"{row_idx}행 '{name}': 키 {height_cm}cm는 범위를 벗어나 무시합니다.")
             height_cm = None
 
+        position_raw = _norm(_cell(row, columns.get("position")))
+        if position_raw in QUICK_POSITIONS:
+            position = position_raw
+        else:
+            if position_raw:
+                warnings.append(
+                    f"{row_idx}행 '{name}': 포지션 '{position_raw}'은 가드/포워드가 아니라 "
+                    f"'{DEFAULT_POSITION}'으로 대체했습니다."
+                )
+            position = DEFAULT_POSITION
+
         members.append({
             "name":       name,
             "skills":     skills,
@@ -204,6 +220,7 @@ def parse_workbook(data: bytes) -> Tuple[List[Dict], List[str]]:
             "age":        age,
             "birth_year": birth_year,
             "height_cm":  height_cm,
+            "position":   position,
         })
 
     wb.close()

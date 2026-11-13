@@ -1,4 +1,4 @@
-"""약식 편성 엑셀 샘플/템플릿 생성기 (포지션 구분 없음 · 키 + 6항목)."""
+"""약식 편성 엑셀 샘플/템플릿 생성기 (가드/포워드 2분류 · 키 + 6항목)."""
 
 import random
 from datetime import date
@@ -12,14 +12,17 @@ from openpyxl.worksheet.datavalidation import DataValidation
 # 6항목 (헤더 표시용, 슬래시 포함)
 QUICK_SKILLS = ["슈팅", "드리블", "패스/시야", "수비", "리바운드", "체력/스피드"]
 
-#  A: 이름 / B: 출생년도 / C: 나이(수식) / D: 키(cm) / E~J: 6항목 / K: 역량평균(수식)
+QUICK_POSITIONS = ["가드", "포워드"]
+
+#  A: 이름 / B: 출생년도 / C: 나이(수식) / D: 키(cm) / E: 포지션 / F~K: 6항목 / L: 역량평균(수식)
 LAYOUT = {
     "name": 1,          # A
     "birth_year": 2,    # B
     "age": 3,           # C  (수식)
     "height": 4,        # D
-    "skill_start": 5,   # E~J (6항목)
-    "level": 11,        # K  (수식)
+    "position": 5,       # E
+    "skill_start": 6,   # F~K (6항목)
+    "level": 12,         # L  (수식)
 }
 
 NAMES = [
@@ -38,9 +41,10 @@ HEIGHT_FILL = PatternFill("solid", fgColor="FFE7F6F0")
 
 COL_AGE         = get_column_letter(LAYOUT["age"])          # C
 COL_HEIGHT      = get_column_letter(LAYOUT["height"])       # D
-COL_SKILL_FIRST = get_column_letter(LAYOUT["skill_start"])  # E
-COL_SKILL_LAST  = get_column_letter(LAYOUT["skill_start"] + 5)  # J
-COL_LEVEL       = get_column_letter(LAYOUT["level"])        # K
+COL_POSITION    = get_column_letter(LAYOUT["position"])     # E
+COL_SKILL_FIRST = get_column_letter(LAYOUT["skill_start"])  # F
+COL_SKILL_LAST  = get_column_letter(LAYOUT["skill_start"] + 5)  # K
+COL_LEVEL       = get_column_letter(LAYOUT["level"])        # L
 
 
 def _age_formula(row: int) -> str:
@@ -64,18 +68,18 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     guide["A1"] = "이 시트는 안내용이며 프로그램 파싱 대상이 아닙니다."
     guide["A3"] = "1) '선수레벨' 시트 3행이 헤더, 4행은 예시행(파싱 제외), 5행부터 실제 데이터입니다."
     guide["A4"] = "2) 키(D열)는 cm 단위 정수를 입력합니다 (예: 178)."
-    guide["A5"] = "3) 역량 점수(E~J열)는 0~5, 0.5 단위로 입력합니다."
-    guide["A6"] = "4) 포지션 구분 없이 6가지 항목을 모든 인원에게 동일하게 적용합니다."
-    guide["A8"] = "※ 회색 배경 열(C 나이, K 역량평균)은 수식 자동 계산 — 직접 입력하지 마세요."
+    guide["A5"] = "3) 포지션(E열)은 가드/포워드 중 하나를 드롭다운으로 고릅니다."
+    guide["A6"] = "4) 역량 점수(F~K열)는 0~5, 0.5 단위로 입력합니다. 6가지 항목을 포지션 구분 없이 동일하게 적용합니다."
+    guide["A8"] = "※ 회색 배경 열(C 나이, L 역량평균)은 수식 자동 계산 — 직접 입력하지 마세요."
     guide["A8"].font = Font(bold=True)
     guide.column_dimensions["A"].width = 72
 
     ws = wb.create_sheet("선수레벨")
-    ws["A1"] = "농구 동호회 약식 선수 레벨 시트 (포지션 구분 없음 · 키 + 6항목)"
+    ws["A1"] = "농구 동호회 약식 선수 레벨 시트 (가드/포워드 2분류 · 키 + 6항목)"
     ws["A2"] = "3행: 헤더 / 4행: 예시행(파싱 제외) / 5행부터 실제 데이터"
 
-    # 헤더 행 (A~K)
-    header_titles = ["이름", "출생년도", "나이", "키(cm)"] + QUICK_SKILLS + ["역량평균"]
+    # 헤더 행 (A~L)
+    header_titles = ["이름", "출생년도", "나이", "키(cm)", "포지션"] + QUICK_SKILLS + ["역량평균"]
     for col, title in enumerate(header_titles, start=1):
         cell = ws.cell(row=3, column=col, value=title)
         cell.font = Font(bold=True)
@@ -85,6 +89,8 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
         ws.cell(row=3, column=col).fill = AUTO_FILL
     # 키 헤더 색
     ws.cell(row=3, column=LAYOUT["height"]).fill = HEIGHT_FILL
+    # 포지션 헤더 색
+    ws.cell(row=3, column=LAYOUT["position"]).fill = HEIGHT_FILL
     # 역량 헤더 색
     for i in range(6):
         ws.cell(row=3, column=LAYOUT["skill_start"] + i).fill = SKILL_FILL
@@ -96,6 +102,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     ws.cell(row=4, column=2, value=this_year - 32)
     ws.cell(row=4, column=3, value=_age_formula(4)).fill = AUTO_FILL
     ws.cell(row=4, column=4, value=178)
+    ws.cell(row=4, column=LAYOUT["position"], value="가드")
     for i in range(6):
         ws.cell(row=4, column=LAYOUT["skill_start"] + i, value=3.5)
     ws.cell(row=4, column=LAYOUT["level"], value=_level_formula(4)).fill = AUTO_FILL
@@ -109,6 +116,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
         ws.cell(row=row, column=1, value=name)
         ws.cell(row=row, column=2, value=this_year - rng.randint(22, 48))
         ws.cell(row=row, column=4, value=rng.randint(165, 195))   # 키
+        ws.cell(row=row, column=LAYOUT["position"], value=rng.choice(QUICK_POSITIONS))
         for i in range(6):
             score = min(5.0, max(0.0, base + rng.choice([-1.0, -0.5, 0, 0, 0.5, 1.0])))
             ws.cell(row=row, column=LAYOUT["skill_start"] + i, value=score)
@@ -129,6 +137,16 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     ws.add_data_validation(dv_h)
     dv_h.add(height_range)
 
+    # 포지션 드롭다운 (가드/포워드)
+    position_range = f"{COL_POSITION}{FIRST_DATA_ROW}:{COL_POSITION}{last_row}"
+    dv_p = DataValidation(
+        type="list", formula1=f'"{",".join(QUICK_POSITIONS)}"',
+        allow_blank=True, showErrorMessage=True,
+        errorTitle="포지션", error="가드 또는 포워드를 선택하세요.",
+    )
+    ws.add_data_validation(dv_p)
+    dv_p.add(position_range)
+
     # 역량 입력값 유효성 검사 (0~5, 0.5 단위)
     skill_range = f"{COL_SKILL_FIRST}{FIRST_DATA_ROW}:{COL_SKILL_LAST}{last_row}"
     first_cell  = f"{COL_SKILL_FIRST}{FIRST_DATA_ROW}"
@@ -147,6 +165,7 @@ def build_workbook(rows: int = len(NAMES), seed: int = 7) -> Workbook:
     ws.column_dimensions["B"].width = 10
     ws.column_dimensions["C"].width = 8
     ws.column_dimensions["D"].width = 8   # 키
+    ws.column_dimensions[COL_POSITION].width = 10
     for i in range(6):
         ws.column_dimensions[get_column_letter(LAYOUT["skill_start"] + i)].width = 12
     ws.column_dimensions[COL_LEVEL].width = 10
