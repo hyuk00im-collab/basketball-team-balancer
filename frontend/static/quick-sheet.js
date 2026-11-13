@@ -215,7 +215,6 @@ export function createQuickMemberSheet() {
     document.getElementById("sheetSub").textContent = [
       teamName,
       member.position || null,
-      member.age ? `${member.age}세` : null,
       member.height_cm ? `${member.height_cm}cm` : null,
     ].filter(Boolean).join(" · ");
 

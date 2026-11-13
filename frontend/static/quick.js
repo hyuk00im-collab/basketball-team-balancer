@@ -291,9 +291,7 @@ function renderResult(teams, scroll = true) {
   teams.forEach((team, idx) => {
     const guardCount   = team.members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length;
     const forwardCount = team.members.length - guardCount;
-    const withAge    = team.members.filter((m) => m.age);
     const withHeight = team.members.filter((m) => m.height_cm);
-    const avgAge    = withAge.length    ? withAge.reduce((s, m) => s + m.age, 0) / withAge.length : null;
     const avgHeight = withHeight.length ? withHeight.reduce((s, m) => s + m.height_cm, 0) / withHeight.length : null;
 
     const card = document.createElement("div");
@@ -312,7 +310,6 @@ function renderResult(teams, scroll = true) {
     /* 요약 pills */
     const sum = document.createElement("div"); sum.className = "team-summary";
     const pills = [`가드 <b>${guardCount}</b>`, `포워드 <b>${forwardCount}</b>`];
-    if (avgAge !== null) pills.push(`평균 나이 <b>${avgAge.toFixed(1)}세</b>`);
     if (avgHeight !== null) pills.push(`평균 키 <b>${avgHeight.toFixed(1)}cm</b>`);
     pills.forEach((html) => {
       const p = document.createElement("span"); p.className = "pill"; p.innerHTML = html; sum.append(p);
@@ -349,7 +346,7 @@ function renderResult(teams, scroll = true) {
       who.append(nm);
       if (m.is_guest)  { const g = document.createElement("span"); g.className = "guest"; g.textContent = "게스트"; who.append(g); }
       if (m.estimated) { const e = document.createElement("span"); e.className = "est";   e.textContent = "추정";   who.append(e); }
-      const metaParts = [m.age ? `${m.age}세` : null, m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean);
+      const metaParts = [m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean);
       if (metaParts.length) {
         const meta = document.createElement("span"); meta.className = "meta";
         meta.textContent = metaParts.join(" · "); who.append(meta);
@@ -388,7 +385,7 @@ function buildCopyText(teams) {
   return teams.map((t) => {
     const guardCount = t.members.filter((m) => (m.position || DEFAULT_POSITION) === "가드").length;
     const list = t.members.map((m) => {
-      const extra = [m.age ? `${m.age}세` : null, m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean).join(" · ");
+      const extra = [m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean).join(" · ");
       return `  ${m.name}(${m.position || DEFAULT_POSITION})${extra ? " " + extra : ""}${m.is_guest ? " 게스트" : ""}`;
     }).join("\n");
     return `【${t.name}】 (${t.members.length}명, 가드 ${guardCount}·포워드 ${t.members.length - guardCount})\n${list}`;
