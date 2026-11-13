@@ -223,13 +223,61 @@ function shuffle(arr) {
   }
   return a;
 }
+function teamSizes(n, k) {
+  const base = Math.floor(n / k), rem = n % k;
+  return Array.from({ length: k }, (_, i) => base + (i < rem ? 1 : 0));
+}
+
+/**
+ * 무작위 배정이지만, 역량 1·2위와 키 1·2위는 항상 서로 다른 팀에 앉힌다.
+ * 나머지 인원은 완전 무작위로 채운다.
+ */
 function buildTeams(k) {
-  const shuffled = shuffle(members);
+  const sizes = teamSizes(members.length, k);
   const teams = Array.from({ length: k }, (_, i) => ({
     idx: i, name: TEAM_NAMES[i] || `팀 ${i + 1}`,
     color: TEAM_COLORS[i] || "#555", members: [],
   }));
-  shuffled.forEach((m, j) => teams[j % k].members.push(m));
+
+  const placed = new Set();
+  const teamOf = (memberId) => teams.findIndex((t) => t.members.some((m) => m.id === memberId));
+  const place = (member, excludeIdx = -1) => {
+    if (!member || placed.has(member.id)) return teamOf(member && member.id);
+    const withRoom = teams.map((t, i) => i).filter((i) => i !== excludeIdx && teams[i].members.length < sizes[i]);
+    const pool = withRoom.length ? withRoom : teams.map((t, i) => i).filter((i) => i !== excludeIdx);
+    const chosen = pool.length ? pool[Math.floor(Math.random() * pool.length)] : Math.floor(Math.random() * k);
+    teams[chosen].members.push(member);
+    placed.add(member.id);
+    return chosen;
+  };
+
+  if (k >= 2) {
+    // 역량(레벨) 1·2위 분산
+    const byLevel = [...members].sort((a, b) => b.level - a.level);
+    if (byLevel.length >= 2) {
+      const idx0 = place(byLevel[0]);
+      place(byLevel[1], idx0);
+    }
+
+    // 키 1·2위 분산 (키 입력된 인원만)
+    const byHeight = members.filter((m) => m.height_cm).sort((a, b) => b.height_cm - a.height_cm);
+    if (byHeight.length >= 2) {
+      const [h0, h1] = byHeight;
+      if (placed.has(h0.id) && !placed.has(h1.id)) {
+        place(h1, teamOf(h0.id));
+      } else if (placed.has(h1.id) && !placed.has(h0.id)) {
+        place(h0, teamOf(h1.id));
+      } else if (!placed.has(h0.id) && !placed.has(h1.id)) {
+        const idx0 = place(h0);
+        place(h1, idx0);
+      }
+      // 둘 다 이미 배치됐다면 역량 분산에서 이미 서로 다른 팀으로 갈린 상태 — 그대로 둔다.
+    }
+  }
+
+  // 나머지 인원은 완전 무작위로 채운다
+  shuffle(members.filter((m) => !placed.has(m.id))).forEach((m) => place(m));
+
   return teams;
 }
 
