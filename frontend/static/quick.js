@@ -315,9 +315,13 @@ function renderResult(teams, scroll = true) {
       const p = document.createElement("span"); p.className = "pill"; p.innerHTML = html; sum.append(p);
     });
 
-    /* 명단 */
+    /* 명단 — 가드 먼저, 포워드 나중 */
     const ul = document.createElement("ul"); ul.className = "roster";
-    team.members.forEach((m) => {
+    const sortedMembers = [...team.members].sort((a, b) => {
+      const rank = (m) => (m.position || DEFAULT_POSITION) === "가드" ? 0 : 1;
+      return rank(a) - rank(b);
+    });
+    sortedMembers.forEach((m) => {
       const li = document.createElement("li");
       li.className = "clickable"; li.tabIndex = 0; li.draggable = true;
       li.dataset.memberId = m.id;
@@ -346,17 +350,15 @@ function renderResult(teams, scroll = true) {
       who.append(nm);
       if (m.is_guest)  { const g = document.createElement("span"); g.className = "guest"; g.textContent = "게스트"; who.append(g); }
       if (m.estimated) { const e = document.createElement("span"); e.className = "est";   e.textContent = "추정";   who.append(e); }
-      const metaParts = [m.height_cm ? `${m.height_cm}cm` : null].filter(Boolean);
-      if (metaParts.length) {
-        const meta = document.createElement("span"); meta.className = "meta";
-        meta.textContent = metaParts.join(" · "); who.append(meta);
-      }
+
+      const htEl = document.createElement("span"); htEl.className = "lv";
+      htEl.textContent = m.height_cm ? `${m.height_cm}cm` : "—";
 
       const posTag = document.createElement("span");
       posTag.className = "pos " + (m.position || DEFAULT_POSITION);
       posTag.textContent = m.position || DEFAULT_POSITION;
 
-      li.append(who, posTag); ul.append(li);
+      li.append(who, htEl, posTag); ul.append(li);
     });
 
     /* 드롭 이벤트 */
